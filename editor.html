@@ -83,7 +83,8 @@
 </header>
 
 <div class="bar">
-  <button class="primary" id="copyBtn" type="button">Copy settings</button>
+  <button class="primary" id="saveBtn" type="button">Save to sheet</button>
+  <button id="copyBtn" type="button">Copy settings</button>
   <button id="undoBtn" type="button" disabled>Undo</button>
   <button id="resetBtn" type="button">Back to original</button>
   <span class="sp"></span>
@@ -121,6 +122,7 @@
 
 <script>
 (function () {
+  const SAVE_URL = "__SAVE_URL__";   // Apps Script web app bound to the control sheet; empty = copy/paste only
   const LOGOS = ["anthropic", "apple", "canva", "claude", "deepseek", "github", "gmail", "google", "googlegemini", "meta", "microsoft", "notion", "openai", "perplexity", "php", "quickbooks", "shopify", "slack", "stripe", "whatsapp", "x", "youtube"];
   const FACES = ["brow-raised", "head-tilt", "knowing-smile", "looking-to-headline", "mid-word", "neutral", "slight-smile"];
   const LANES = { money: ["#C9B9F7", "#AD97F0"], claude: ["#F6DCCF", "#EFC0A9"], openai: ["#D5EFE0", "#A9DFC2"], gemini: ["#F7E9B5", "#F0D878"], meta: ["#D6E6F7", "#AFCBEF"], marketing: ["#F7D9E3", "#F0B7C9"], apple: ["#E6E6E6", "#CFCFCF"], business: ["#EDE6D6", "#DCCFB0"] };
@@ -372,6 +374,16 @@
   $("face_sel").addEventListener("change", () => { push(); P.face = $("face_sel").value; draw(); });
   $("undoBtn").addEventListener("click", () => { if (!history.length) return; P = JSON.parse(history.pop()); draw(); buildInspector(); });
   $("resetBtn").addEventListener("click", () => { if (original) { push(); P = JSON.parse(JSON.stringify(original)); draw(); buildInspector(); } });
+  $("saveBtn").addEventListener("click", () => {
+    if (!SAVE_URL || SAVE_URL.indexOf("script.google") < 0) { $("hint").textContent = "Saving straight to the sheet is not connected yet; use Copy settings and paste into the row."; return; }
+    if (!slug) { $("hint").textContent = "No video loaded: open the editor from the row's edit link, or paste its settings and press Load."; return; }
+    $("saveBtn").disabled = true; $("hint").textContent = "Saving…";
+    const payload = JSON.stringify({ slug, settings: $("settings").value });
+    fetch(SAVE_URL, { method: "POST", body: payload, headers: { "Content-Type": "text/plain;charset=utf-8" }, redirect: "follow" })
+      .then((r) => r.json().catch(() => ({ ok: r.ok })))
+      .then((j) => { $("saveBtn").disabled = false; if (j && j.ok) { $("hint").innerHTML = '<span class="ok">Saved to the sheet.</span> The new thumbnail appears on the row within about 5 minutes.'; } else { $("hint").textContent = "The sheet did not accept it: " + ((j && j.error) || "unknown error") + ". Use Copy settings and paste instead."; } })
+      .catch(() => { $("saveBtn").disabled = false; $("hint").textContent = "Could not reach the sheet. Use Copy settings and paste into the row."; });
+  });
   $("copyBtn").addEventListener("click", () => {
     const text = $("settings").value;
     const done = () => { $("hint").innerHTML = '<span class="ok">Copied.</span> Paste it into the "Thumbnail settings" cell of this video\'s row on the review sheet. The system re-renders from it within 5 minutes.'; };

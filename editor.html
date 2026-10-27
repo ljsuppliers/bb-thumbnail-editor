@@ -85,13 +85,13 @@
 </header>
 
 <div class="bar">
-  <button class="primary" id="saveBtn" type="button">Save to sheet</button>
+  <button class="primary" id="saveBtn" type="button">Save</button>
   <button id="downloadBtn" type="button">Download PNG</button>
   <button id="copyBtn" type="button">Copy settings</button>
   <button id="undoBtn" type="button" disabled>Undo</button>
   <button id="resetBtn" type="button">Back to original</button>
   <span class="sp"></span>
-  <span class="hint" id="hint">Click anything to select it. Drag to move, pull the corner dot to resize, double-click words to type. Colours for the selected thing appear above it.</span>
+  <span class="hint" id="hint">Click anything to select it. Drag to move, pull the corner dot to resize, double-click words to type. Press Save when done.</span>
 </div>
 
 <div class="wrap" id="wrap">
@@ -411,7 +411,7 @@
   $("undoBtn").addEventListener("click", () => { if (!history.length) return; P = JSON.parse(history.pop()); draw(); buildInspector(); });
   $("resetBtn").addEventListener("click", () => { if (original) { push(); P = JSON.parse(JSON.stringify(original)); draw(); buildInspector(); } });
   $("saveBtn").addEventListener("click", () => {
-    if (!SAVE_URL) { $("hint").textContent = "Saving straight to the sheet is not connected yet; use Copy settings and paste into the row."; return; }
+    if (!SAVE_URL) { $("hint").textContent = "Saving is not connected; use Copy settings and paste into the row."; return; }
     if (!slug) { $("hint").textContent = "No video loaded: open the editor from the row's edit link, or paste its settings and press Load."; return; }
     $("saveBtn").disabled = true; $("hint").textContent = "Saving…";
     const stage = $("stage"); const prev = stage.style.transform; const wasSel = sel; select(null); stage.style.transform = "none";
@@ -420,7 +420,7 @@
       .then((png) => { stage.style.transform = prev; if (wasSel) select(wasSel); return JSON.stringify({ slug, settings: $("settings").value, png: png || "" }); })
       .then((payload) => fetch(SAVE_URL, { method: "POST", body: payload, headers: { "Content-Type": "text/plain;charset=utf-8" }, redirect: "follow" }))
       .then((r) => r.json().catch(() => ({ ok: r.ok })))
-      .then((j) => { $("saveBtn").disabled = false; if (j && j.ok) { $("hint").innerHTML = '<span class="ok">Saved to the sheet.</span> The row shows this exact picture within a couple of minutes.'; } else { $("hint").textContent = "The sheet did not accept it: " + ((j && j.error) || "unknown error") + ". Use Copy settings and paste instead."; } })
+      .then((j) => { $("saveBtn").disabled = false; if (j && j.ok) { $("hint").innerHTML = '<span class="ok">Saved.</span> Tick Thumb OK on the row when you are happy with it.'; } else { $("hint").textContent = "The sheet did not accept it: " + ((j && j.error) || "unknown error") + ". Use Copy settings and paste instead."; } })
       .catch(() => { $("saveBtn").disabled = false; $("hint").textContent = "Could not reach the sheet. Use Copy settings and paste into the row."; });
   });
   $("downloadBtn").addEventListener("click", () => {

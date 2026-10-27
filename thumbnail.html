@@ -547,6 +547,13 @@
       });
     });
     if (!chip.classList.contains("hidden")) { if (q.get("chipbg")) chip.style.background = q.get("chipbg"); if (q.get("chipink")) chip.style.color = q.get("chipink"); }
+    for (let i = 1; i <= 4; i++) {   // emoji1..4 = character, emoji1x/y = position, emoji1s = size px (editor v5, 27 Oct 2026)
+      const ch = q.get("emoji" + i); if (!ch) continue;
+      const el = document.createElement("div"); el.className = "emoji"; el.textContent = ch;
+      el.style.cssText = "position:absolute;z-index:7;line-height:1;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;" +
+        "left:" + n("emoji" + i + "x", 900) + "px;top:" + n("emoji" + i + "y", 500) + "px;font-size:" + n("emoji" + i + "s", 160) + "px;filter:drop-shadow(0 10px 18px rgba(0,0,0,0.25));";
+      stage.appendChild(el);
+    }
     head.dataset.size = size;
     document.body.dataset.check = "manual headline=" + size + "px headAt=" + n("headx", 56) + "," + n("heady", 300) + " chipAt=" + n("chipx", 56) + "," + n("chipy", 56) + " faceRight=" + face.style.right + " faceH=" + n("faceh", 880);
     document.body.setAttribute("data-ready", "1");

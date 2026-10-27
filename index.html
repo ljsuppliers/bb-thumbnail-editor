@@ -85,6 +85,7 @@
 
 <div class="bar">
   <button class="primary" id="saveBtn" type="button">Save to sheet</button>
+  <button id="downloadBtn" type="button">Download PNG</button>
   <button id="copyBtn" type="button">Copy settings</button>
   <button id="undoBtn" type="button" disabled>Undo</button>
   <button id="resetBtn" type="button">Back to original</button>
@@ -121,6 +122,7 @@
   <div class="bar" style="margin-top: 8px"><button id="loadBtn" type="button">Load from pasted settings</button></div>
 </details>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
 <script>
 (function () {
   const SAVE_URL = "https://bb-thumb-save.ljsuppliers.workers.dev/save";   // Apps Script web app bound to the control sheet; empty = copy/paste only
@@ -393,6 +395,16 @@
       .then((r) => r.json().catch(() => ({ ok: r.ok })))
       .then((j) => { $("saveBtn").disabled = false; if (j && j.ok) { $("hint").innerHTML = '<span class="ok">Saved to the sheet.</span> The sheet row updates within a minute and the new thumbnail follows a few minutes later.'; } else { $("hint").textContent = "The sheet did not accept it: " + ((j && j.error) || "unknown error") + ". Use Copy settings and paste instead."; } })
       .catch(() => { $("saveBtn").disabled = false; $("hint").textContent = "Could not reach the sheet. Use Copy settings and paste into the row."; });
+  });
+  $("downloadBtn").addEventListener("click", () => {
+    const stage = $("stage"); const prev = stage.style.transform; const wasSel = sel;
+    select(null); stage.style.transform = "none";
+    $("hint").textContent = "Rendering the PNG…";
+    htmlToImage.toPng(stage, { width: 1280, height: 720, pixelRatio: 1, cacheBust: true, style: { transform: "none" } })
+      .then((url) => { const a = document.createElement("a"); a.href = url; a.download = (slug || "thumbnail") + ".png"; document.body.appendChild(a); a.click(); a.remove();
+                       $("hint").innerHTML = '<span class="ok">Downloaded.</span> Drop it into the video\'s Drive folder as thumbnail.png and the system uses it as the final thumbnail.'; })
+      .catch((e) => { $("hint").textContent = "Could not render the PNG: " + e; })
+      .finally(() => { stage.style.transform = prev; if (wasSel) select(wasSel); });
   });
   $("copyBtn").addEventListener("click", () => {
     const text = $("settings").value;

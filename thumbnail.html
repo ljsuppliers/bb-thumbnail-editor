@@ -534,7 +534,8 @@
     const n = function (k, d) { const v = parseFloat(q.get(k)); return isNaN(v) ? d : v; };
     const size = n("headsize", 0) > 0 ? n("headsize", 0) : region.size;
     head.style.fontSize = size + "px"; head.style.left = n("headx", 56) + "px"; head.style.top = n("heady", 300) + "px"; head.style.transform = "none";
-    if (!chip.classList.contains("hidden")) { chip.style.left = n("chipx", 56) + "px"; chip.style.top = n("chipy", 56) + "px"; chip.style.right = "auto"; chip.style.transform = "scale(" + n("logoscale", 1) + ")"; chip.style.transformOrigin = "left top"; }
+    if (!chip.classList.contains("hidden")) { chip.style.left = n("chipx", 56) + "px"; chip.style.top = n("chipy", 56) + "px"; chip.style.right = "auto"; chip.style.transform = "scale(" + n("logoscale", 1) + ")"; chip.style.transformOrigin = "left top";
+      if (n("chipfont", 0) > 0) chip.style.fontSize = n("chipfont", 0) + "px"; const lg = chip.querySelector("img"); if (lg && n("chiplogo", 0) > 0) lg.style.height = n("chiplogo", 0) + "px"; }
     if (face.isConnected) { face.style.height = n("faceh", 880) + "px"; face.style.top = n("facetop", 24) + "px"; face.style.right = (-40 - n("facex", 0)) + "px"; }
     // per-line colours from the editor: ink1..3 (text), bg1..3 (block; "none" = no block), chipbg / chipink
     Array.from(head.querySelectorAll(".row")).forEach(function (row, i) {
@@ -597,7 +598,8 @@
       let hg = Infinity; head.querySelectorAll("span").forEach(function (sp) { hg = Math.min(hg, gap(sp)); });
       let eg = Infinity; stage.querySelectorAll(".tray, .notify, .reply, .pair .c, .vs .card, .vs .v, .tier .tile").forEach(function (el) { eg = Math.min(eg, gap(el)); });
       document.body.dataset.check = "headline=" + size + "px chipGap=" + (chip.classList.contains("hidden") ? "none" : gap(chip)) +
-        " headGap=" + hg + (badge ? " badgeGap=" + gap(badge) : "") + (eg !== Infinity ? " elementGap=" + eg : "") + " faceRight=" + face.dataset.right + " faceH=" + Math.round(parseFloat(getComputedStyle(face).height)) + " headInset=" + Math.round(1280 - headRight()) + " faceTop=" + face.style.top;
+        " headGap=" + hg + (badge ? " badgeGap=" + gap(badge) : "") + (eg !== Infinity ? " elementGap=" + eg : "") + " faceRight=" + face.dataset.right + " faceH=" + Math.round(parseFloat(getComputedStyle(face).height)) + " headInset=" + Math.round(1280 - headRight()) + " faceTop=" + Math.round(parseFloat(getComputedStyle(face).top) || 24) + " headAt=" + Math.round(head.offsetLeft) + "," + Math.round(head.offsetTop) +
+        (chip.classList.contains("hidden") ? "" : " chipAt=" + Math.round(chip.offsetLeft) + "," + Math.round(chip.offsetTop) + " chipFont=" + Math.round(parseFloat(getComputedStyle(chip).fontSize)) + (chip.querySelector("img") ? " chipLogo=" + Math.round(parseFloat(getComputedStyle(chip.querySelector("img")).height)) : ""));
     } else document.body.dataset.check = "headline=" + size + "px noFace";
     document.body.setAttribute("data-ready", "1");
   }

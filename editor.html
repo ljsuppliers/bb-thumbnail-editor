@@ -370,7 +370,7 @@
     const first = spans[0]; if (!first) return; first.focus();
     const range = document.createRange(); range.selectNodeContents(first); const s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(range);
   }
-  $("addLine").addEventListener("click", () => { if ((P.lines || []).length >= 3) return; push(); P.lines = (P.lines || []).concat(["[p]new line"]); draw(); editRow(P.lines.length - 1); });
+  $("addLine").addEventListener("click", () => { if ((P.lines || []).length >= 5) return; push(); P.lines = (P.lines || []).concat(["[p]new line"]); draw(); editRow(P.lines.length - 1); });
   $("delLine").addEventListener("click", () => { if ((P.lines || []).length <= 1) return; push(); P.lines = P.lines.slice(0, -1); delete P.colours["bg" + (P.lines.length + 1)]; delete P.colours["ink" + (P.lines.length + 1)]; draw(); buildInspector(); });
 
   // ---------------------------------------------------------------- strip controls

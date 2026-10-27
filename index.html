@@ -57,6 +57,7 @@
           box-shadow: 0 10px 30px rgba(20,20,20,0.13), 0 2px 6px rgba(20,20,20,0.06); white-space: nowrap; }
   .chip img { height: 104px; width: auto; display: block; pointer-events: none; }
   .chip.hidden { display: none; }
+  .emoji { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; line-height: 1; z-index: 7; filter: drop-shadow(0 10px 18px rgba(0,0,0,0.25)); user-select: none; }
 
   /* ---- floating inspector for the selected object */
   .insp { position: absolute; z-index: 20; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); max-width: 96%; }
@@ -112,6 +113,7 @@
   <label>Tilt line 2 <select id="tilt"><option value="1">yes</option><option value="0">no</option></select></label>
   <label>Add / change logo <select id="logo"></select></label>
   <label>Face <select id="face_sel"></select></label>
+  <label>Emoji <select id="emojiPick"><option value="">add…</option></select></label>
   <button id="addLine" type="button">+ line</button>
   <button id="delLine" type="button">− line</button>
 </div>
@@ -131,7 +133,7 @@
   const LANES = { money: ["#C9B9F7", "#AD97F0"], claude: ["#F6DCCF", "#EFC0A9"], openai: ["#D5EFE0", "#A9DFC2"], gemini: ["#F7E9B5", "#F0D878"], meta: ["#D6E6F7", "#AFCBEF"], marketing: ["#F7D9E3", "#F0B7C9"], apple: ["#E6E6E6", "#CFCFCF"], business: ["#EDE6D6", "#DCCFB0"] };
   const TOKENS = { "[w]": "white", "[b]": "black", "[t]": "tint", "[p]": "plain" };
   const DEFAULTS = { layout: "classic", topic: "money", lines: ["[w]Your", "[t]headline", "[p]here"], face: "neutral", faceh: 880, facex: 0, facetop: 24, start: "white", tilt: 1, field: "", accent: "",
-                     headsize: 0, logoscale: 1, headx: 56, heady: 0, chipx: 56, chipy: 52, chipfont: 0, chiplogo: 0, manual: 1, colours: {}, logo: "", name: "", extra: {} };
+                     headsize: 0, logoscale: 1, headx: 56, heady: 0, chipx: 56, chipy: 52, chipfont: 0, chiplogo: 0, manual: 1, colours: {}, emojis: [], logo: "", name: "", extra: {} };
   const $ = (id) => document.getElementById(id);
   let P = Object.assign({}, DEFAULTS), original = null, slug = "", title = "", history = [], scale = 1, sel = null, selRow = 0;
 
@@ -189,6 +191,12 @@
       });
       head.insertBefore(row, handle);
     });
+    $("stage").querySelectorAll(".emoji").forEach((e) => e.remove());
+    (P.emojis || []).forEach((em, i) => {
+      const e = document.createElement("div"); e.className = "obj emoji"; e.dataset.kind = "emoji"; e.dataset.i = i; e.textContent = em.ch;
+      e.style.left = (em.x || 900) + "px"; e.style.top = (em.y || 500) + "px"; e.style.fontSize = (em.s || 160) + "px";
+      const h = document.createElement("span"); h.className = "handle"; e.appendChild(h); $("stage").appendChild(e); wireObj(e);
+    });
     head.style.fontSize = (P.headsize || 120) + "px";
     head.style.left = (P.headx == null ? 56 : P.headx) + "px";
     if (!P.heady) { P.heady = Math.max(200, 690 - head.offsetHeight); }
@@ -217,7 +225,7 @@
   // ---------------------------------------------------------------- selection + inspector
   function select(kind, rowIdx) {
     sel = kind; selRow = rowIdx == null ? selRow : rowIdx;
-    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === kind));
+    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === kind && (kind !== "emoji" || +o.dataset.i === selRow)));
     buildInspector();
   }
   function buildInspector() {
@@ -260,6 +268,14 @@
       $("iChipBg").addEventListener("input", () => { P.colours = P.colours || {}; P.colours.chipbg = $("iChipBg").value; draw(); });
       $("iChipInk").addEventListener("input", () => { P.colours = P.colours || {}; P.colours.chipink = $("iChipInk").value; draw(); });
       $("iScale").addEventListener("change", () => { push(); P.logoscale = Math.max(0.3, Math.min(3, +$("iScale").value || 1)); draw(); });
+    } else if (sel === "emoji") {
+      const em = (P.emojis || [])[selRow] || {};
+      add(`<label>Emoji <input type="text" id="iEmoji" size="3" value="${em.ch || ""}"></label>
+           <label>Size <button type="button" class="pm" data-pm="emoji" data-d="-12">−</button><input type="text" id="iEmojiS" size="4" value="${Math.round(em.s || 160)}"><button type="button" class="pm" data-pm="emoji" data-d="12">+</button></label>
+           <button id="iEmojiDel" type="button">Remove</button>`);
+      $("iEmoji").addEventListener("change", () => { push(); em.ch = $("iEmoji").value.trim() || em.ch; draw(); });
+      $("iEmojiS").addEventListener("change", () => { push(); em.s = Math.max(40, Math.min(600, +$("iEmojiS").value || 160)); draw(); });
+      $("iEmojiDel").addEventListener("click", () => { push(); P.emojis.splice(selRow, 1); select(null); draw(); });
     } else if (sel === "face") {
       const faceOpts = FACES.map((f) => `<option value="${f}" ${f === P.face ? "selected" : ""}>${f.replace(/-/g, " ")}</option>`).join("") + '<option value="none">none</option>';
       add(`<label>Expression <select id="iFace">${faceOpts}</select></label>
@@ -274,13 +290,15 @@
       if (k === "headsize") P.headsize = Math.max(40, Math.min(240, Math.round((P.headsize || 120) + d)));
       if (k === "logoscale") P.logoscale = Math.max(0.3, Math.min(3, Math.round(((P.logoscale || 1) + d) * 100) / 100));
       if (k === "faceh") P.faceh = Math.max(300, Math.min(1400, Math.round((P.faceh || 880) + d)));
+      if (k === "emoji" && P.emojis[selRow]) P.emojis[selRow].s = Math.max(40, Math.min(600, Math.round((P.emojis[selRow].s || 160) + d)));
       draw(); buildInspector();
     }));
     placeInspector();
   }
   function placeInspector() {
     const insp = $("insp"); if (insp.hidden || !sel) return;
-    const el = $(sel === "head" ? "head" : sel === "chip" ? "chip" : "face");
+    const el = sel === "emoji" ? $("stage").querySelector('.emoji[data-i="' + selRow + '"]') : $(sel === "head" ? "head" : sel === "chip" ? "chip" : "face");
+    if (!el) { insp.hidden = true; return; }
     const r = el.getBoundingClientRect(), w = $("wrap").getBoundingClientRect();
     let top = r.top - w.top - insp.offsetHeight - 14; if (top < 6) top = r.bottom - w.top + 14; if (top + insp.offsetHeight > w.height - 6) top = 6;
     let left = r.left - w.left; left = Math.max(6, Math.min(left, w.width - insp.offsetWidth - 6));
@@ -310,15 +328,15 @@
     }
     {
       const row = e.target.closest(".row");
-      select(kind, row ? +row.dataset.idx : null);
+      select(kind, kind === "emoji" ? +o.dataset.i : (row ? +row.dataset.idx : null));
       e.preventDefault();
       const r = o.getBoundingClientRect();
-      drag = { kind, resize, x0: e.clientX, y0: e.clientY, w: r.width / scale, h: r.height / scale, start: { facex: P.facex || 0, facetop: P.facetop == null ? 24 : P.facetop, faceh: P.faceh || 880, headx: P.headx == null ? 56 : P.headx, heady: P.heady || 300, headsize: P.headsize || 120, chipx: P.chipx == null ? 56 : P.chipx, chipy: P.chipy == null ? 52 : P.chipy, logoscale: P.logoscale || 1 }, moved: false };
+      drag = { kind, resize, x0: e.clientX, y0: e.clientY, w: r.width / scale, h: r.height / scale, start: { facex: P.facex || 0, facetop: P.facetop == null ? 24 : P.facetop, faceh: P.faceh || 880, headx: P.headx == null ? 56 : P.headx, heady: P.heady || 300, headsize: P.headsize || 120, chipx: P.chipx == null ? 56 : P.chipx, chipy: P.chipy == null ? 52 : P.chipy, logoscale: P.logoscale || 1, ex: ((P.emojis || [])[kind === "emoji" ? +o.dataset.i : 0] || {}).x, ey: ((P.emojis || [])[kind === "emoji" ? +o.dataset.i : 0] || {}).y, es: ((P.emojis || [])[kind === "emoji" ? +o.dataset.i : 0] || {}).s }, moved: false };
       try { o.setPointerCapture(e.pointerId); } catch (err) {}
       o.classList.add("dragging"); push();
     }
   }
-  document.querySelectorAll(".obj").forEach((o) => {
+  function wireObj(o) {
     const kind = o.dataset.kind;
     o.addEventListener("pointerdown", (e) => beginDrag(o, e));
     o.addEventListener("pointermove", (e) => {
@@ -328,6 +346,7 @@
       const s = drag.start;
       if (drag.resize) {
         const k = Math.max(0.25, Math.min(3, (drag.w + dx) / drag.w));
+        if (kind === "emoji" && P.emojis[selRow]) { P.emojis[selRow].s = Math.max(40, Math.min(600, Math.round((drag.start.es || 160) * k))); o.style.fontSize = P.emojis[selRow].s + "px"; }
         if (kind === "face") { P.faceh = Math.round(s.faceh * k); $("face").style.height = P.faceh + "px"; }
         if (kind === "head") { P.headsize = Math.max(40, Math.min(240, Math.round(s.headsize * k))); $("head").style.fontSize = P.headsize + "px"; }
         if (kind === "chip") { P.logoscale = Math.max(0.3, Math.min(3, Math.round(s.logoscale * k * 100) / 100)); $("chip").style.transform = "scale(" + P.logoscale + ")"; }
@@ -335,13 +354,15 @@
         if (kind === "face") { P.facex = Math.round(s.facex + dx); P.facetop = Math.round(s.facetop + dy); $("face").style.right = (-40 - P.facex) + "px"; $("face").style.top = P.facetop + "px"; }
         if (kind === "head") { P.headx = Math.round(s.headx + dx); P.heady = Math.round(s.heady + dy); $("head").style.left = P.headx + "px"; $("head").style.top = P.heady + "px"; }
         if (kind === "chip") { P.chipx = Math.round(s.chipx + dx); P.chipy = Math.round(s.chipy + dy); $("chip").style.left = P.chipx + "px"; $("chip").style.top = P.chipy + "px"; }
+        if (kind === "emoji" && P.emojis[selRow]) { P.emojis[selRow].x = Math.round((s.ex || 900) + dx); P.emojis[selRow].y = Math.round((s.ey || 500) + dy); o.style.left = P.emojis[selRow].x + "px"; o.style.top = P.emojis[selRow].y + "px"; }
       }
       placeInspector();
     });
     const end = () => { if (!drag) return; const moved = drag.moved; drag = null; o.classList.remove("dragging"); if (!moved) history.pop(); syncStrip(); buildInspector(); };
     o.addEventListener("pointerup", end); o.addEventListener("pointercancel", end);
     o.addEventListener("dblclick", (e) => { if (kind === "head") { const row = e.target.closest(".row"); editRow(row ? +row.dataset.idx : selRow); } if (kind === "chip") { select("chip"); if ($("iName")) $("iName").focus(); } });
-  });
+  }
+  document.querySelectorAll(".obj").forEach(wireObj);
   document.addEventListener("pointermove", (e) => { if (!drag) return; const o = $(drag.kind === "head" ? "head" : drag.kind === "chip" ? "chip" : "face"); if (!o.hasPointerCapture || !o.hasPointerCapture(e.pointerId)) o.dispatchEvent(new PointerEvent("pointermove", e)); });
   document.addEventListener("pointerup", (e) => { if (!drag) return; const o = $(drag.kind === "head" ? "head" : drag.kind === "chip" ? "chip" : "face"); if (!o.hasPointerCapture || !o.hasPointerCapture(e.pointerId)) o.dispatchEvent(new PointerEvent("pointerup", e)); });
   $("stage").addEventListener("pointerdown", (e) => { if (e.target === $("stage")) select(null); });
@@ -353,6 +374,7 @@
     if (sel === "face") { P.facex = (P.facex || 0) + d[0]; P.facetop = (P.facetop == null ? 24 : P.facetop) + d[1]; }
     if (sel === "head") { P.headx = (P.headx == null ? 56 : P.headx) + d[0]; P.heady = (P.heady || 300) + d[1]; }
     if (sel === "chip") { P.chipx = (P.chipx == null ? 56 : P.chipx) + d[0]; P.chipy = (P.chipy == null ? 52 : P.chipy) + d[1]; }
+    if (sel === "emoji" && P.emojis[selRow]) { P.emojis[selRow].x = (P.emojis[selRow].x || 900) + d[0]; P.emojis[selRow].y = (P.emojis[selRow].y || 500) + d[1]; }
     draw();
   });
 
@@ -372,6 +394,8 @@
     const first = spans[0]; if (!first) return; first.focus();
     const range = document.createRange(); range.selectNodeContents(first); const s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(range);
   }
+  ["😱", "🤯", "😮", "😍", "🤔", "😂", "🔥", "💰", "💸", "📈", "✅", "❌", "👉", "👀", "💡", "🚀", "⚠️", "🧠", "⭐", "🎯", "❤️", "💻", "📊", "🛒"].forEach((ch) => $("emojiPick").appendChild(new Option(ch, ch)));
+  $("emojiPick").addEventListener("change", () => { const ch = $("emojiPick").value; if (!ch) return; push(); P.emojis = P.emojis || []; if (P.emojis.length >= 4) P.emojis.shift(); P.emojis.push({ ch, x: 860 + P.emojis.length * 40, y: 420, s: 160 }); $("emojiPick").value = ""; draw(); select("emoji", P.emojis.length - 1); });
   $("addLine").addEventListener("click", () => { if ((P.lines || []).length >= 5) return; push(); P.lines = (P.lines || []).concat(["[p]new line"]); draw(); editRow(P.lines.length - 1); });
   $("delLine").addEventListener("click", () => { if ((P.lines || []).length <= 1) return; push(); P.lines = P.lines.slice(0, -1); delete P.colours["bg" + (P.lines.length + 1)]; delete P.colours["ink" + (P.lines.length + 1)]; draw(); buildInspector(); });
 

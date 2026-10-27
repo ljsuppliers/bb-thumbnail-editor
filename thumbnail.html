@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Boring Business thumbnail</title>
+<!--
+  Boring Business thumbnail template, 1280x720. Everything is set by URL query parameters; make-thumb.sh builds them.
+
+  Common
+    layout   classic (default) | tray | laptop | notify | tier | badge | vs | launch | pair
+    line     repeat per headline line, 1 to 3 lines, 3 to 5 words in total. A leading * = accent block.
+    logo     absolute path to a product logo (~/YouTube/assets/logos/*-ink.svg). Optional chip (and the launch card).
+    name     product name for the chip (and the launch card).
+    face     absolute path to a transparent PNG cut-out. "none" hides it. Default: faces/neutral.png.
+    faceh    cut-out height in px (default 700).   facex  nudge the cut-out sideways in px.
+    topic    picks the lane colour (field tint plus its mid tint): claude/anthropic orange; openai/chatgpt mint;
+             gemini/google/seo yellow; meta/muse/deepseek/dev/web/php/code sky; marketing/social pink;
+             money/finance/income/side-income/shopify purple; business/ops beige (default); apple/mac/productivity grey
+    start    white (default) or black: colour of the first headline block; blocks then alternate.
+             Per line, a leading style token overrides that: [w] white block, [b] black block, [t] mid-tint block
+             (a deeper shade of the topic tint, black text), [p] plain text with no block. "||" splits a line into
+             segments on one row, each with its own token, e.g. "[p]Which || [t]agent?".
+    tilt     1 (default in the round 3 scheme) tilts the second headline row by 1.2 degrees; 0 keeps it straight.
+    nreply   notify layout: text of a reply button under the card (optional).
+    logos    colour (default in the round 3 scheme): product logos in the maker's colours via *-colour.svg; ink keeps black.
+    facetop  px from the top edge to the top of the cut-out (default 24). faceh default 880.
+    field, accent, accentink, dir (bb default | a | b | c), grid (1|0), mark (0 default, 1 shows the corner mark)
+
+  Layout extras (an "item" is "path/to/logo.svg@Name" or just "Name")
+    tray     icon   repeat, one item each (logos shown in a white tray)
+    laptop   screen absolute path to a real page screenshot (16:10 works best)
+    notify   nicon (logo path), napp (app name), ntime (default "now"), ntitle, nbody
+    tier     tier   repeat, "Row label:item;item;item" (top row gets the accent)
+    badge    num (the number), numlabel (the word under it)
+    vs       left, right   one item each
+    launch   logo + name make the card, tag = small line above it. No presenter unless face is given.
+    pair     not, this (card text), notlabel (default "Not this"), thislabel (default "This")
+-->
+<style>
+  @font-face { font-family: "Fraunces"; src: url("fonts/Fraunces-VF.ttf") format("truetype"); font-weight: 100 900; }
+  @font-face { font-family: "Instrument Sans"; src: url("fonts/InstrumentSans-VF.ttf") format("truetype"); font-weight: 400 700; }
+  @font-face { font-family: "Playfair Display"; src: url("fonts/PlayfairDisplay-VF.ttf") format("truetype"); font-weight: 400 900; }
+  @font-face { font-family: "Source Sans 3"; src: url("fonts/SourceSans3-VF.ttf") format("truetype"); font-weight: 200 900; }
+  @font-face { font-family: "DM Serif Display"; src: url("fonts/DMSerifDisplay-Regular.ttf") format("truetype"); font-weight: 400; }
+  @font-face { font-family: "Lato"; src: url("fonts/Lato-Bold.ttf") format("truetype"); font-weight: 700; }
+
+  :root {
+    --field: #EAE3D2; --field-deep: #DCD2BC; --accent: #E4572E; --accent-soft: #F2A585; --accent-ink: #141414;
+    --ink: #141414; --paper: #FFFFFF; --grid: rgba(20, 20, 20, 0.07);
+    --head: "Fraunces", Georgia, serif; --head-weight: 800; --head-vars: "opsz" 144, "SOFT" 30, "WONK" 0;
+    --sans: "Instrument Sans", Helvetica, Arial, sans-serif;
+    --card-shadow: 6px 6px 0 var(--ink);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; background: var(--field); }
+  .stage { position: relative; width: 1280px; height: 720px; overflow: hidden; background-color: var(--field); }
+  .stage.grid {
+    background-image: linear-gradient(var(--grid) 2px, transparent 2px), linear-gradient(90deg, var(--grid) 2px, transparent 2px);
+    background-size: 120px 120px; background-position: -1px -1px;
+  }
+  .face {
+    position: absolute; top: 24px; right: -40px; height: 880px; z-index: 6;   /* the face is always the top layer */
+    filter: drop-shadow(5px 0 0 var(--paper)) drop-shadow(-5px 0 0 var(--paper))
+            drop-shadow(0 5px 0 var(--paper)) drop-shadow(0 -5px 0 var(--paper))
+            drop-shadow(0 18px 30px rgba(0,0,0,0.18));
+  }
+  .chip { transform: scale(var(--logoscale, 1)); transform-origin: left top; }
+  .chip {
+    position: absolute; top: 52px; left: 56px; z-index: 3; display: flex; align-items: center; gap: 26px;
+    background: var(--paper); border: 4px solid var(--ink); border-radius: 30px; padding: 18px 40px 18px 28px;
+    font-family: var(--sans); font-weight: 700; font-size: 66px; color: var(--ink); letter-spacing: -0.01em;
+    box-shadow: var(--card-shadow);
+  }
+  .chip img { height: 104px; width: auto; display: block; }
+  .hidden { display: none !important; }
+  .headline {
+    position: absolute; left: 56px; z-index: 4; display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+    font-size: var(--headsize, inherit);
+    font-family: var(--head); font-weight: var(--head-weight); font-variation-settings: var(--head-vars);
+    color: var(--ink); line-height: 1.02; letter-spacing: -0.02em;
+  }
+  .headline.centre { left: 0; right: 0; align-items: center; }
+  .headline span { display: inline-block; background: var(--paper); padding: 0.02em 0.2em 0.08em; white-space: nowrap; }
+  .headline span.accent { background: var(--accent); color: var(--accent-ink); }
+  .headline span.white { background: var(--paper); color: var(--ink); }
+  .headline span.black { background: var(--ink); color: var(--paper); }
+  .mark { position: absolute; left: 50px; bottom: 34px; z-index: 5; width: 64px; height: 64px; }
+  .el { position: absolute; z-index: 3; font-family: var(--sans); color: var(--ink); }
+
+  /* shared bits */
+  .card { background: var(--paper); border: 4px solid var(--ink); border-radius: 22px; box-shadow: var(--card-shadow); }
+  .tile { display: inline-flex; align-items: center; gap: 12px; background: var(--paper); border: 3px solid var(--ink);
+          border-radius: 12px; height: 72px; padding: 0 18px; font-weight: 700; font-size: 26px; white-space: nowrap; }
+  .tile img { height: 40px; width: auto; }
+
+  /* tray */
+  .tray { left: 56px; top: 440px; display: flex; gap: 22px; padding: 22px; }
+  .tray .slot { width: 96px; height: 96px; border-radius: 20px; background: #F4EFE4; display: grid; place-items: center; }
+  .tray .slot img { width: 58px; height: 58px; object-fit: contain; }
+
+  /* laptop */
+  .laptop { left: 44px; top: 284px; width: 640px; }
+  .laptop .lid { background: #1B1B1B; border-radius: 20px 20px 0 0; padding: 14px 14px 18px; }
+  .laptop .lid img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; border-radius: 4px; }
+  .laptop .base { height: 20px; margin: 0 -44px; background: linear-gradient(#3A3A3A, #222); border-radius: 0 0 16px 16px; position: relative; }
+  .laptop .base::after { content: ""; position: absolute; left: 50%; top: 0; width: 110px; height: 8px; transform: translateX(-50%);
+                         background: #151515; border-radius: 0 0 8px 8px; }
+
+  /* notification */
+  .notify { left: 56px; top: 396px; width: 640px; padding: 22px 28px 24px; background: rgba(255,255,255,0.97);
+            border-radius: 30px; border: 2px solid rgba(20,20,20,0.12); box-shadow: 0 20px 44px rgba(20,20,20,0.16);
+            transform: rotate(-1.2deg); }
+  .notify .top { display: flex; align-items: center; gap: 14px; font-size: 24px; font-weight: 600; color: #5C5850; }
+  .notify .top img { width: 44px; height: 44px; padding: 7px; border-radius: 11px; background: #F4EFE4; }
+  .notify .top .time { margin-left: auto; font-weight: 500; }
+  .notify .title { margin-top: 14px; font-size: 31px; font-weight: 700; }
+  .notify .body { margin-top: 6px; font-size: 26px; line-height: 1.32; color: #2A2825; }
+
+  /* tier list */
+  .tier { left: 56px; top: 236px; width: 650px; border: 4px solid var(--ink); border-radius: 20px; overflow: hidden;
+          background: #F7F3EA; box-shadow: var(--card-shadow); }
+  .tier .row { display: flex; align-items: stretch; min-height: 108px; }
+  .tier .row + .row { border-top: 3px solid var(--ink); }
+  .tier .lab { width: 196px; flex: none; display: flex; align-items: center; justify-content: center; text-align: center;
+               padding: 0 14px; font-weight: 700; font-size: 27px; line-height: 1.1; border-right: 3px solid var(--ink); }
+  .tier .row:nth-child(1) .lab { background: var(--accent); color: var(--accent-ink); }
+  .tier .row:nth-child(2) .lab { background: var(--accent-soft); }
+  .tier .row:nth-child(3) .lab { background: var(--field-deep); }
+  .tier .items { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; }
+
+  /* numbered badge */
+  .badge { left: 64px; top: 372px; width: 224px; height: 224px; border-radius: 50%; background: var(--accent);
+           border: 5px solid var(--ink); box-shadow: var(--card-shadow); transform: rotate(-6deg);
+           display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .badge .n { color: var(--accent-ink); font-family: var(--head); font-weight: 900; font-variation-settings: var(--head-vars); font-size: 136px; line-height: 0.86; }
+  .badge .w { color: var(--accent-ink); font-weight: 700; font-size: 32px; margin-top: 4px; }
+
+  /* vs */
+  .vs { left: 56px; top: 330px; display: flex; align-items: center; }
+  .vs .card { width: 248px; height: 248px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+              font-weight: 700; font-size: 28px; }
+  .vs .card img { width: 112px; height: 112px; object-fit: contain; }
+  .vs .v { width: 92px; height: 92px; margin: 0 -18px; z-index: 2; border-radius: 50%; background: var(--accent); border: 4px solid var(--ink);
+           display: grid; place-items: center; font-family: var(--head); font-weight: 800; font-size: 44px; padding-bottom: 6px; color: var(--accent-ink); }
+
+  /* launch card */
+  .launch { left: 50%; top: 170px; transform: translateX(-50%); display: flex; align-items: center; gap: 40px; padding: 44px 64px; }
+  .launch img { height: 150px; width: auto; }
+  .launch .nm { font-family: var(--head); font-weight: 800; font-variation-settings: var(--head-vars); font-size: 118px;
+                letter-spacing: -0.02em; white-space: nowrap; }
+  .launch-tag { left: 50%; top: 92px; transform: translateX(-50%); background: var(--ink); color: var(--paper);
+                border-radius: 12px; padding: 8px 20px; font-weight: 700; font-size: 28px; white-space: nowrap; }
+
+  /* this, not that */
+  .pair { left: 56px; top: 380px; display: flex; gap: 30px; }
+  .pair .c { width: 300px; height: 222px; border-radius: 22px; padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
+  .pair .c .t { align-self: flex-start; border-radius: 10px; padding: 5px 14px; font-weight: 700; font-size: 24px; }
+  .pair .c .x { font-family: var(--head); font-weight: 800; font-variation-settings: var(--head-vars); font-size: 50px; line-height: 1.02; letter-spacing: -0.02em; }
+  .pair .not { background: var(--field-deep); border: 4px solid rgba(20,20,20,0.35); color: rgba(20,20,20,0.6); }
+  .pair .not .t { border: 3px solid rgba(20,20,20,0.45); }
+  .pair .not .x { text-decoration: line-through; text-decoration-thickness: 5px; text-decoration-color: rgba(20,20,20,0.55); }
+  .pair .yes { background: var(--paper); border: 4px solid var(--ink); box-shadow: var(--card-shadow); }
+  .pair .yes .t { background: var(--accent); color: var(--accent-ink); border: 3px solid var(--ink); }
+
+  /* ---- Round 3 "soft" style (Tool Finder reference): soft white cards, rounded blocks, mid-tint blocks ---- */
+  .stage.soft { --card-shadow: 0 10px 30px rgba(20,20,20,0.13), 0 2px 6px rgba(20,20,20,0.06); }
+  .stage.soft.grid { background-image: linear-gradient(var(--grid-soft) 2px, transparent 2px), linear-gradient(90deg, var(--grid-soft) 2px, transparent 2px);
+                     background-size: 120px 120px; }
+  .stage.soft.dots { background-image: radial-gradient(var(--grid-soft) 2.2px, transparent 2.6px); background-size: 28px 28px; }
+  .stage.soft .face { filter: drop-shadow(9px 0 0 #fff) drop-shadow(-9px 0 0 #fff) drop-shadow(0 9px 0 #fff) drop-shadow(0 -9px 0 #fff)
+                              drop-shadow(0 16px 28px rgba(0,0,0,0.16)); }
+  .stage.soft .headline { letter-spacing: 0; gap: 6px; font-variation-settings: "opsz" 60, "SOFT" 0, "WONK" 0; font-weight: 900; }
+  .stage.soft .headline .row { display: flex; align-items: baseline; gap: 0.18em; }
+  .stage.soft .headline .row.tilt { transform: rotate(-1.2deg); transform-origin: left center; }
+  .stage.soft .headline span { border-radius: 12px; padding: 0.04em 0.22em 0.1em; }
+  .stage.soft .headline span.tint { background: var(--tint-mid); color: var(--ink); }
+  .stage.soft .headline span.plain { background: transparent; padding-left: 0.06em; padding-right: 0.06em; }
+  .stage.soft .chip { border: none; border-radius: 30px; padding: 18px 40px 18px 28px; box-shadow: var(--card-shadow); }
+  .stage.soft .card { border: none; border-radius: 26px; box-shadow: var(--card-shadow); }
+  .stage.soft .tray { background: rgba(255,255,255,0.82); padding: 20px; gap: 18px; }
+  .stage.soft .tray .slot { background: #fff; border-radius: 20px; box-shadow: 0 4px 12px rgba(20,20,20,0.10); width: 84px; height: 84px; }
+  .stage.soft .tray .slot img { width: 50px; height: 50px; }
+  .stage.soft .tray { padding: 16px; gap: 14px; }
+  .stage.soft .pair .c { height: 172px; width: 250px; padding: 16px 20px; gap: 10px; }
+  .stage.soft .pair { gap: 22px; }
+  .stage.soft .pair .c .x { font-size: 42px; font-weight: 900; font-variation-settings: "opsz" 60, "SOFT" 0; letter-spacing: 0; }
+  .stage.soft .vs .card { width: 176px; height: 176px; gap: 10px; font-size: 24px; }
+  .stage.soft .vs .card img { width: 84px; height: 84px; }
+  .stage.soft .tier .row { min-height: 84px; }
+  .stage.soft .tier { gap: 10px; }
+  .stage.soft .notify { transform: none; border: none; border-radius: 26px; box-shadow: var(--card-shadow); }
+  .stage.soft .notify .top img { background: #fff; box-shadow: 0 2px 6px rgba(20,20,20,0.12); }
+  .reply { position: absolute; z-index: 3; background: #fff; border: 3px solid var(--ink); border-radius: 999px; padding: 10px 26px;
+           font-family: var(--sans); font-weight: 600; font-size: 26px; color: var(--ink); white-space: nowrap; box-shadow: 0 6px 16px rgba(20,20,20,0.10); }
+  .stage.soft .tier { border: none; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; display: flex; flex-direction: column; gap: 12px; }
+  .stage.soft .tier .row { min-height: 96px; background: rgba(255,255,255,0.92); border-radius: 18px; box-shadow: 0 6px 18px rgba(20,20,20,0.09); overflow: hidden; }
+  .stage.soft .tier .row + .row { border-top: none; }
+  .stage.soft .tier .lab, .stage.soft .tier .row:nth-child(n) .lab { background: var(--tint-mid); color: var(--ink); border-right: none; }
+  .stage.soft .tile { border: none; box-shadow: 0 3px 10px rgba(20,20,20,0.10); border-radius: 14px; }
+  .stage.soft .badge { width: 150px; height: 150px; background: var(--ink); border: 9px solid #fff; transform: none; box-shadow: var(--card-shadow); }
+  .stage.soft .badge .n { color: #fff; font-size: 88px; font-variation-settings: "opsz" 60, "SOFT" 0; }
+  .stage.soft .badge .w { color: #fff; font-size: 20px; margin-top: 0; }
+  .stage.soft .vs .v { background: var(--ink); color: #fff; border: 7px solid #fff; width: 98px; height: 98px; box-shadow: var(--card-shadow); }
+  .stage.soft .pair .not { background: rgba(255,255,255,0.45); border: none; box-shadow: none; }
+  .stage.soft .pair .not .t { border: 2px solid rgba(20,20,20,0.35); }
+  .stage.soft .pair .yes { border: none; box-shadow: var(--card-shadow); }
+  .stage.soft .pair .yes .t { border: none; }
+  .stage.soft .laptop { left: 28px; top: 268px; width: 740px; }
+  .stage.soft .laptop .lid { background: #101010; border-radius: 30px 30px 0 0; padding: 16px 16px 20px; box-shadow: var(--card-shadow); }
+  .stage.soft .laptop .lid img { border-radius: 10px 10px 0 0; }
+  .stage.soft .laptop .base { background: linear-gradient(#D5D8DD, #A9ADB4); }
+  .stage.soft .launch { padding: 48px 70px; }
+  .stage.soft .launch-tag { border-radius: 999px; padding: 8px 22px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="chip hidden" id="chip"></div>
+  <div class="headline" id="headline"></div>
+  <img class="face" id="face" alt="">
+  <img class="mark" id="mark" alt="">
+</div>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  // Round 3 default: Tool Finder-style alternating white and black blocks, no accent colour, pale tint per topic.
+  // Round 5 lanes (Liam, 24 Oct 2026): eight trial colours, one per lane. Field tint and its mid tint for [t] blocks.
+  const lanes = [
+    [["claude", "anthropic"], "#F6DCCF", "#EFC0A9"],
+    [["openai", "chatgpt"], "#D5EFE0", "#A9DFC2"],
+    [["gemini", "google", "seo"], "#F7E9B5", "#F0D878"],
+    [["meta", "muse", "deepseek", "dev", "devtools", "web", "php", "code"], "#D6E6F7", "#AFCBEF"],
+    [["marketing", "social"], "#F7D9E3", "#F0B7C9"],
+    [["money", "finance", "income", "sideincome", "side-income", "shopify"], "#C9B9F7", "#AD97F0"],
+    [["business", "ops"], "#EDE6D6", "#DCCFB0"],
+    [["apple", "mac", "productivity"], "#E6E6E6", "#CFCFCF"]
+  ];
+  const tints = {}, midTints = {};
+  lanes.forEach(function (l) { l[0].forEach(function (k) { tints[k] = l[1]; midTints[k] = l[2]; }); });
+  const presets = {
+    bb: { scheme: "alt", field: "#EAE3D2", deep: "#D6D1C6", accent: "#141414", soft: "#FFFFFF", accentInk: "#FFFFFF", head: '"Fraunces", Georgia, serif', weight: 800,
+         vars: '"opsz" 144, "SOFT" 30, "WONK" 0', sans: '"Instrument Sans", Arial, sans-serif', mark: "assets/marks/mark-a-filing-cabinet.svg" },
+    a: { field: "#EAE3D2", deep: "#DCD2BC", accent: "#E4572E", soft: "#F2A585", accentInk: "#141414", head: '"Fraunces", Georgia, serif', weight: 800,
+         vars: '"opsz" 144, "SOFT" 30, "WONK" 0', sans: '"Instrument Sans", Arial, sans-serif', mark: "assets/marks/mark-a-filing-cabinet.svg" },
+    b: { field: "#D9D5CD", deep: "#C8C3B9", accent: "#2F5D46", soft: "#8FB09E", accentInk: "#FFFFFF", head: '"Playfair Display", Georgia, serif', weight: 900,
+         vars: "normal", sans: '"Source Sans 3", Arial, sans-serif', mark: "assets/marks/mark-b-tea-mug.svg" },
+    c: { field: "#C9D3DC", deep: "#B6C2CD", accent: "#F2D04B", soft: "#F7E39A", accentInk: "#141414", head: '"DM Serif Display", Georgia, serif', weight: 400,
+         vars: "normal", sans: '"Lato", Arial, sans-serif', mark: "assets/marks/mark-c-paperclip.svg" }
+  };
+  const p = presets[(q.get("dir") || "bb").toLowerCase()] || presets.bb;
+  const topic = (q.get("topic") || "money").toLowerCase();   // Liam, 26 Oct 2026: the purple lane is the default field
+  const fieldColour = q.get("field") || (p.scheme === "alt" ? (tints[topic] || tints.money) : p.field);
+  const root = document.documentElement.style;
+  root.setProperty("--field", fieldColour);
+  root.setProperty("--field-deep", p.deep);
+  root.setProperty("--accent", q.get("accent") || p.accent);
+  root.setProperty("--accent-soft", p.soft);
+  root.setProperty("--accent-ink", q.get("accentink") || p.accentInk);
+  root.setProperty("--head", p.head);
+  root.setProperty("--head-weight", p.weight);
+  root.setProperty("--head-vars", p.vars);
+  root.setProperty("--sans", p.sans);
+  root.setProperty("--tint-mid", q.get("tintmid") || midTints[topic] || midTints.money);
+  // 27 Oct 2026 (thumbnail editor): headsize = headline font size in px (0/absent = the template's own fit); logoscale scales the chip
+  if (q.get("headsize") && parseInt(q.get("headsize"), 10) > 0) root.setProperty("--headsize", parseInt(q.get("headsize"), 10) + "px");
+  if (q.get("logoscale")) root.setProperty("--logoscale", parseFloat(q.get("logoscale")) || 1);
+  root.setProperty("--grid-soft", "color-mix(in srgb, " + fieldColour + " 91%, #3A3550 9%)");
+
+  const layout = (q.get("layout") || "classic").toLowerCase();
+  const stage = document.getElementById("stage");
+  if (p.scheme === "alt") stage.classList.add("soft");
+  const gridMode = q.get("grid") || "1";
+  if (gridMode === "dots") stage.classList.add("dots"); else if (gridMode !== "0") stage.classList.add("grid");
+
+  function h(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  // Product logos use the maker's real colours (round 4): a *-ink.svg path is swapped for its *-colour.svg twin,
+  // falling back to the ink file if no colour version exists. logos=ink keeps the ink set. Our own text stays black and white.
+  const colourLogos = p.scheme === "alt" && (q.get("logos") || "colour") !== "ink";
+  function img(src) {
+    const i = document.createElement("img"); i.alt = "";
+    if (colourLogos && /-ink\.svg$/.test(src)) {
+      i.onerror = function () { i.onerror = null; i.src = src; };
+      i.src = src.replace(/-ink\.svg$/, "-colour.svg");
+    } else i.src = src;
+    return i;
+  }
+  function add(el) { stage.appendChild(el); return el; }
+  // "path@Name" or "Name"
+  function item(spec) {
+    const at = spec.lastIndexOf("@");
+    if (at > 0 && /\.(svg|png|jpe?g|webp)$/i.test(spec.slice(0, at))) return { src: spec.slice(0, at), name: spec.slice(at + 1) };
+    if (/\.(svg|png|jpe?g|webp)$/i.test(spec)) return { src: spec, name: "" };
+    return { src: "", name: spec };
+  }
+  function tile(spec) { const it = item(spec); const t = h("div", "tile"); if (it.src) t.appendChild(img(it.src)); if (it.name) t.appendChild(h("span", "", it.name)); return t; }
+
+  // Headline lines
+  const head = document.getElementById("headline");
+  const startBlack = (q.get("start") || "white").toLowerCase() === "black";
+  const tokens = { "[w]": "white", "[b]": "black", "[t]": "tint", "[p]": "plain" };
+  const tiltOn = p.scheme === "alt" && q.get("tilt") !== "0";
+  q.getAll("line").filter(Boolean).forEach(function (raw, idx) {
+    const row = h("div", "row");
+    raw.split("||").map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (seg) {
+      const accent = seg.startsWith("*");
+      let text = accent ? seg.slice(1) : seg;
+      let cls = accent ? "accent" : "";
+      if (p.scheme === "alt") {
+        cls = ((idx % 2 === 0) !== startBlack) ? "white" : "black";
+        const tk = text.slice(0, 3).toLowerCase();
+        if (tokens[tk]) { cls = tokens[tk]; text = text.slice(3).trim(); }
+      }
+      row.appendChild(h("span", cls, text));
+    });
+    if (tiltOn && idx === 1) row.classList.add("tilt");
+    head.appendChild(row);
+  });
+
+  // Chip (not on the launch card, where the logo is the card)
+  const chip = document.getElementById("chip");
+  const logo = q.get("logo"), name = q.get("name");
+  if ((logo || name) && layout !== "launch") {
+    chip.classList.remove("hidden");
+    if (logo) chip.appendChild(img(logo));
+    if (name) chip.appendChild(h("span", "", name));
+  }
+  const hasChip = !chip.classList.contains("hidden");
+
+  // Face
+  const face = document.getElementById("face");
+  const facePath = q.get("face") || (layout === "launch" ? "none" : "faces/neutral.png");
+  if (facePath === "none") face.remove(); else face.src = facePath;
+  if (q.get("faceh")) face.style.height = parseInt(q.get("faceh"), 10) + "px";
+  if (q.get("facetop")) face.style.top = parseInt(q.get("facetop"), 10) + "px";
+  const fx = parseInt(q.get("facex") || "0", 10);
+  if (fx && face.isConnected) face.style.right = (-40 - fx) + "px";
+
+  // Mark
+  const mark = document.getElementById("mark");
+  if (q.get("mark") === "1") mark.src = q.get("markpath") || p.mark; else mark.remove();
+
+  // Headline region per layout: top, bottom, max width, starting size
+  const chipTop = hasChip ? 236 : 56;
+  let region = { top: chipTop, bottom: mark.isConnected ? 600 : 650, maxW: 650, size: 132 };
+
+  if (layout === "tray") {
+    const tray = add(h("div", "el card tray"));
+    q.getAll("icon").forEach(function (spec) { const s = h("div", "slot"); const it = item(spec); if (it.src) s.appendChild(img(it.src)); tray.appendChild(s); });
+    region = { top: chipTop, bottom: 410, maxW: 640, size: 118 };
+  } else if (layout === "laptop") {
+    const lap = add(h("div", "el laptop")); const lid = h("div", "lid");
+    if (q.get("screen")) lid.appendChild(img(q.get("screen")));
+    lap.appendChild(lid); lap.appendChild(h("div", "base"));
+    if (mark.isConnected && q.get("mark") !== "1") mark.remove(); // the laptop sits where the mark goes
+    region = { top: hasChip ? 216 : 44, bottom: 262, maxW: 640, size: 108 };
+  } else if (layout === "notify") {
+    const n = add(h("div", "el notify")); const top = h("div", "top");
+    if (q.get("nicon")) top.appendChild(img(q.get("nicon")));
+    top.appendChild(h("span", "", q.get("napp") || "")); top.appendChild(h("span", "time", q.get("ntime") || "now"));
+    n.appendChild(top); n.appendChild(h("div", "title", q.get("ntitle") || "")); n.appendChild(h("div", "body", q.get("nbody") || ""));
+    if (q.get("nreply")) { const r = add(h("div", "reply", q.get("nreply"))); r.dataset.follow = "notify"; }
+    region = { top: chipTop, bottom: 372, maxW: 640, size: 118 };
+  } else if (layout === "tier") {
+    const t = add(h("div", "el tier"));
+    q.getAll("tier").forEach(function (rowSpec) {
+      const i = rowSpec.indexOf(":"); const row = h("div", "row");
+      row.appendChild(h("div", "lab", i > -1 ? rowSpec.slice(0, i) : rowSpec));
+      const items = h("div", "items");
+      (i > -1 ? rowSpec.slice(i + 1) : "").split(";").map(function (s) { return s.trim(); }).filter(Boolean)
+        .forEach(function (s) { items.appendChild(tile(s)); });
+      row.appendChild(items); t.appendChild(row);
+    });
+    region = { top: hasChip ? 150 : 48, bottom: 214, maxW: 650, size: 112 };
+  } else if (layout === "badge") {
+    const b = add(h("div", "el badge"));
+    b.appendChild(h("div", "n", q.get("num") || "3")); if (q.get("numlabel")) b.appendChild(h("div", "w", q.get("numlabel")));
+    region = { top: chipTop, bottom: 352, maxW: 640, size: 124 };
+  } else if (layout === "vs") {
+    const v = add(h("div", "el vs"));
+    [q.get("left") || "", "VS", q.get("right") || ""].forEach(function (spec) {
+      if (spec === "VS") { v.appendChild(h("div", "v", "vs")); return; }
+      const it = item(spec); const c = h("div", "card"); if (it.src) c.appendChild(img(it.src)); if (it.name) c.appendChild(h("span", "", it.name)); v.appendChild(c);
+    });
+    region = { top: chipTop, bottom: 306, maxW: 640, size: 118 };
+  } else if (layout === "launch") {
+    if (q.get("tag")) add(h("div", "el launch-tag", q.get("tag")));
+    const c = add(h("div", "el card launch")); if (logo) c.appendChild(img(logo)); if (name) c.appendChild(h("div", "nm", name));
+    head.classList.add("centre");
+    region = { top: 496, bottom: 650, maxW: 1000, size: 120 };
+  } else if (layout === "pair") {
+    const pr = add(h("div", "el pair"));
+    const a = h("div", "c not"); a.appendChild(h("div", "t", "✕  " + (q.get("notlabel") || "Not this"))); a.appendChild(h("div", "x", q.get("not") || ""));
+    const b = h("div", "c yes"); b.appendChild(h("div", "t", "✓  " + (q.get("thislabel") || "This"))); b.appendChild(h("div", "x", q.get("this") || ""));
+    pr.appendChild(a); pr.appendChild(b);
+    region = { top: chipTop, bottom: 356, maxW: 640, size: 118 };
+  }
+
+  // ---- Face clearance: nothing may cover the face. Measure the cut-out's real outline (alpha) row by row. ----
+  const CLEAR = 24;                                   // px between anything and the face's outline
+  let rowLeft = null, rowRight = null, natH = 0, topTouch = false;
+  function buildProfile() {
+    if (!face.isConnected || !face.naturalWidth) return;
+    try {
+      const c = document.createElement("canvas"); c.width = face.naturalWidth; c.height = face.naturalHeight; natH = c.height;
+      const x = c.getContext("2d"); x.drawImage(face, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height).data; rowLeft = new Array(c.height); rowRight = new Array(c.height);
+      for (let y = 0; y < c.height; y++) {
+        let lx = Infinity, rx = -Infinity; const o = y * c.width * 4;
+        for (let xx = 0; xx < c.width; xx++) { if (d[o + xx * 4 + 3] > 24) { lx = xx; break; } }
+        for (let xx = c.width - 1; xx >= 0; xx--) { if (d[o + xx * 4 + 3] > 24) { rx = xx; break; } }
+        rowLeft[y] = lx; rowRight[y] = rx;
+        if (y === 0 && lx !== Infinity) topTouch = true;   // the cut-out's hair is clipped by the source frame
+      }
+    } catch (e) { rowLeft = null; }                     // fallback: the image's bounding box
+  }
+  function faceLeftAt(y0, y1) {
+    if (!face.isConnected) return Infinity;
+    const fr = face.getBoundingClientRect(); const outline = p.scheme === "alt" ? 9 : 5;
+    if (y1 < fr.top - outline || y0 > fr.bottom) return Infinity;
+    if (!rowLeft) return fr.left - outline;
+    const k = fr.height / natH; let m = Infinity;
+    for (let y = Math.max(y0, fr.top) - outline; y <= y1 + outline; y += 2) {
+      const ny = Math.floor((y - fr.top) / k);
+      if (ny >= 0 && ny < natH && rowLeft[ny] !== Infinity) m = Math.min(m, fr.left + rowLeft[ny] * k);
+    }
+    return m === Infinity ? Infinity : m - outline;
+  }
+  function overlapOf(el) { const r = el.getBoundingClientRect(); return r.right + CLEAR - faceLeftAt(r.top, r.bottom); }
+  function shiftFace(px) { const cur = parseFloat(getComputedStyle(face).right) || 0; face.style.right = (cur - Math.ceil(px)) + "px"; }
+  // ---- Face fit (Liam, 26 Oct 2026: "my face is going off the edge"): the HEAD (top 45% of the cut-out) stays inside the
+  // frame with INSET px to spare. The head may bleed off the top (the footage clips the hair) and the shoulders off the
+  // bottom and right, never the head itself. If keeping it in makes text touch it, the face shrinks instead of moving out.
+  const INSET = 20;
+  function headRight() {
+    if (!face.isConnected) return -Infinity;
+    const fr = face.getBoundingClientRect();
+    if (!rowRight) return fr.right;
+    const k = fr.height / natH; let m = -Infinity;
+    for (let ny = 0; ny < natH * 0.45; ny += 2) { if (rowRight[ny] !== -Infinity) m = Math.max(m, fr.left + rowRight[ny] * k); }
+    return m;
+  }
+  function anyOverlap() {
+    let v = headOverlap();
+    if (!chip.classList.contains("hidden")) v = Math.max(v, overlapOf(chip));
+    stage.querySelectorAll(".tray, .notify, .reply, .pair .c, .vs .card, .vs .v, .tier .tile").forEach(function (el) { v = Math.max(v, overlapOf(el)); });
+    return v;
+  }
+  function keepInside(size) {
+    // Liam, 26 Oct 2026: "move the face to the left a bit so the face is showing fully, and then adjust the text/other
+    // assets on the left hand side so they fit properly! don't make the face smaller or move it upwards".
+    if (!face.isConnected) return size;
+    const out = headRight() - (1280 - INSET);
+    if (out > 0) { const cur = parseFloat(getComputedStyle(face).right) || 0; face.style.right = (cur + Math.ceil(out)) + "px"; }
+    const parts = Array.from(stage.querySelectorAll(".tray, .notify, .reply, .pair .c, .vs .card, .vs .v, .tier .tile"));
+    let scale = 1;
+    for (let k = 0; k < 80; k++) {
+      if (anyOverlap() <= 0) break;
+      if (headOverlap() > 0 && size > 72) { size -= 2; head.style.fontSize = size + "px"; place(); continue; }
+      if (!chip.classList.contains("hidden") && overlapOf(chip) > 0) {
+        const fs = parseFloat(getComputedStyle(chip).fontSize) || 66, lg = chip.querySelector("img");
+        if (fs > 36) { chip.style.fontSize = (fs - 2) + "px"; if (lg) lg.style.height = Math.max(48, (parseFloat(lg.style.height) || 104) - 3) + "px"; place(); continue; }
+      }
+      let pv = -Infinity; parts.forEach(function (el) { pv = Math.max(pv, overlapOf(el)); });
+      if (pv > 0 && scale > 0.6) { scale -= 0.02; parts.forEach(function (el) { el.style.transformOrigin = "left top"; el.style.transform = "scale(" + scale.toFixed(2) + ")"; }); place(); continue; }
+      break;
+    }
+    return size;
+  }
+
+  function fitChip() {
+    if (chip.classList.contains("hidden") || !face.isConnected) return;
+    const span = chip.querySelector("span"), logoImg = chip.querySelector("img");
+    let fs = 66, lh = 104;
+    const over = function () { return overlapOf(chip) > 0; };
+    while (over() && fs > 40) { fs -= 2; chip.style.fontSize = fs + "px"; }
+    while (over() && logoImg && lh > 64) { lh -= 4; logoImg.style.height = lh + "px"; }
+    if (over() && span) {                              // wrap the name onto two lines within the left column
+      const r = chip.getBoundingClientRect(); const room = faceLeftAt(r.top, r.bottom + 80) - CLEAR - r.left;
+      chip.style.maxWidth = Math.max(240, room) + "px"; span.style.whiteSpace = "normal"; span.style.lineHeight = "1.05";
+    }
+    if (over()) shiftFace(overlapOf(chip));              // last resort: the face moves right, the chip never covers it
+    region.top = Math.max(region.top, chip.offsetTop + chip.offsetHeight + 28);
+  }
+
+  const soft = p.scheme === "alt";
+  const MIN = soft ? 108 : 44;                         // round 3 scheme: the headline never goes below 108 px
+  const dock = soft ? stage.querySelector(".tray, .pair, .vs, .notify, .tier") : null;
+  const lap = soft ? stage.querySelector(".laptop") : null;
+  const badge = soft ? stage.querySelector(".badge") : null;
+  const rp = stage.querySelector(".reply");
+  const GAP = 26, EDGE = 36;
+
+  function place() {
+    const replyH = (dock && rp && dock.classList.contains("notify")) ? rp.offsetHeight + 16 : 0;
+    if (dock) {
+      // headline and element as one group, centred between the chip (or top) and the bottom edge; element bleeds if needed
+      const groupH = head.offsetHeight + GAP + dock.offsetHeight + replyH;
+      const avail = (720 - EDGE) - region.top;
+      const gTop = Math.round(region.top + Math.max(0, avail - groupH) / 2);
+      head.style.top = gTop + "px";
+      dock.style.top = (gTop + head.offsetHeight + GAP) + "px";
+    } else {
+      const free = region.bottom - region.top - head.offsetHeight;
+      head.style.top = Math.round(region.top + Math.max(0, free) / 2) + "px";
+    }
+    const headBottom = head.offsetTop + head.offsetHeight;
+    if (lap) lap.style.top = (headBottom + GAP) + "px";
+    if (badge) {
+      const rows = head.querySelectorAll(".row"); const last = rows[rows.length - 1];
+      let right = 0; last.querySelectorAll("span").forEach(function (sp) { right = Math.max(right, sp.offsetLeft + sp.offsetWidth); });
+      badge.style.left = (head.offsetLeft + last.offsetLeft + right + 28) + "px";
+      badge.style.top = Math.round(head.offsetTop + last.offsetTop + last.offsetHeight / 2 - badge.offsetHeight / 2) + "px";
+    }
+    const nf = stage.querySelector(".notify");
+    if (nf && rp) {
+      if (!soft) nf.style.top = (nf.offsetTop - 34) + "px";
+      rp.style.left = (nf.offsetLeft + nf.offsetWidth - rp.offsetWidth - 34) + "px";
+      rp.style.top = (nf.offsetTop + nf.offsetHeight + 16) + "px";
+    }
+  }
+  function headOverlap() {
+    let v = -Infinity;
+    head.querySelectorAll("span").forEach(function (sp) { v = Math.max(v, overlapOf(sp)); });
+    if (badge) v = Math.max(v, overlapOf(badge));
+    return v;
+  }
+
+  function fit() {
+    buildProfile();
+    if (dock) {
+      const replyH = (rp && dock.classList.contains("notify")) ? rp.offsetHeight + 16 : 0;
+      dock.style.top = (720 - EDGE - replyH - dock.offsetHeight) + "px";
+      region.bottom = dock.offsetTop - GAP;
+    }
+    if (lap) region.bottom = 720 - 300;               // keep at least ~300 px of laptop on screen
+    if (badge) region.bottom = 680;                   // the badge sits beside the headline, not under it
+    fitChip();
+    let size = (parseInt(q.get("headsize") || "0", 10) > 0) ? parseInt(q.get("headsize"), 10) : region.size; head.style.fontSize = size + "px";   // 27 Oct 2026: editor override
+    while (size > MIN) {
+      let widest = 0; head.querySelectorAll(".row").forEach(function (r) { widest = Math.max(widest, r.scrollWidth); });
+      if (widest <= region.maxW && head.offsetHeight <= region.bottom - region.top) break;
+      size -= 2; head.style.fontSize = size + "px";
+    }
+    place();
+    // Clear of the face: shrink the headline (not below the floor), then move the face right if still touching.
+    for (let k = 0; k < 60; k++) {
+      const v = headOverlap(); if (v <= 0) break;
+      if (size > MIN) { size -= 2; head.style.fontSize = size + "px"; place(); }
+      else { shiftFace(v); }
+    }
+    if (!chip.classList.contains("hidden") && face.isConnected && overlapOf(chip) > 0) shiftFace(overlapOf(chip));
+    // Readable parts of the secondary element must clear the face too (the laptop may sit under a hand by design).
+    if (face.isConnected && soft) {
+      const nf2 = stage.querySelector(".notify");
+      if (nf2 && rp) {                                  // slide the reply button left before moving the face
+        const r = rp.getBoundingClientRect(); const lim = faceLeftAt(r.top, r.bottom) - CLEAR - r.width;
+        if (r.left > lim) rp.style.left = Math.max(nf2.offsetLeft, Math.floor(lim)) + "px";
+      }
+      const parts = Array.from(stage.querySelectorAll(".tray, .notify, .reply, .pair .c, .vs .card, .vs .v, .tier .tile"));
+      for (let k = 0; k < 30; k++) {
+        let v = -Infinity; parts.forEach(function (el) { v = Math.max(v, overlapOf(el)); });
+        if (v <= 0) break; shiftFace(v);
+      }
+    }
+    size = keepInside(size);
+    head.dataset.size = size;
+    if (face.isConnected) {
+      face.dataset.right = getComputedStyle(face).right;
+      // report: smallest gap in px between the face outline and the chip / headline / badge (should be >= 24)
+      const gap = function (el) { return Math.round(CLEAR - overlapOf(el)); };
+      let hg = Infinity; head.querySelectorAll("span").forEach(function (sp) { hg = Math.min(hg, gap(sp)); });
+      let eg = Infinity; stage.querySelectorAll(".tray, .notify, .reply, .pair .c, .vs .card, .vs .v, .tier .tile").forEach(function (el) { eg = Math.min(eg, gap(el)); });
+      document.body.dataset.check = "headline=" + size + "px chipGap=" + (chip.classList.contains("hidden") ? "none" : gap(chip)) +
+        " headGap=" + hg + (badge ? " badgeGap=" + gap(badge) : "") + (eg !== Infinity ? " elementGap=" + eg : "") + " faceRight=" + face.dataset.right + " faceH=" + Math.round(parseFloat(getComputedStyle(face).height)) + " headInset=" + Math.round(1280 - headRight()) + " faceTop=" + face.style.top;
+    } else document.body.dataset.check = "headline=" + size + "px noFace";
+    document.body.setAttribute("data-ready", "1");
+  }
+  const loads = [document.fonts.load(p.weight + " 100px " + p.head), document.fonts.load("900 100px " + p.head),
+                 document.fonts.load("700 30px " + p.sans), document.fonts.ready];
+  Promise.all(loads.concat(Array.from(document.images).map(function (i) {
+    return i.complete ? Promise.resolve() : new Promise(function (r) { i.addEventListener("load", r, { once: true }); i.addEventListener("error", r, { once: true }); });
+  }))).then(fit);
+})();
+</script>
+</body>
+</html>

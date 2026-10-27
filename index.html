@@ -1,0 +1,230 @@
+<title>Thumbnail Editor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: live preview on top (the real thumbnail template in a scaled frame), controls in a wrapping grid beneath, one
+     sticky bar with the settings to copy back into the review sheet. */
+  :root {
+    --bg: #F3EFE6; --panel: #FFFFFF; --fg: #1B1A17; --muted: #6B665C; --line: #D9D2C2; --accent: #E4572E; --accent-ink: #FFFFFF;
+    --ok: #2E7D4F; --display: "Fraunces", Georgia, serif; --sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1E1C19; --panel: #2A2724; --fg: #F1ECE2; --muted: #B2AB9D; --line: #44403A; --accent: #F2764F; --accent-ink: #1B1A17; --ok: #6CC594; color-scheme: dark } }
+  :root[data-theme="dark"] { --bg: #1E1C19; --panel: #2A2724; --fg: #F1ECE2; --muted: #B2AB9D; --line: #44403A; --accent: #F2764F; --accent-ink: #1B1A17; --ok: #6CC594; color-scheme: dark }
+  @font-face { font-family: "Fraunces"; src: url("fonts/Fraunces-VF.ttf") format("truetype"); font-weight: 100 900; }
+  @font-face { font-family: "Instrument Sans"; src: url("fonts/InstrumentSans-VF.ttf") format("truetype"); font-weight: 400 700; }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.4;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; margin-bottom: 12px; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -0.01em; }
+  h1 small { font-family: var(--sans); font-weight: 400; font-size: 14px; color: var(--muted); margin-left: 8px; }
+  .video { color: var(--muted); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+  .frame { position: relative; width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; background: #111; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
+  .frame iframe { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; border: 0; transform-origin: 0 0; background: #EAE3D2; }
+  .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; padding: 10px 12px;
+         background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .bar .hint { color: var(--muted); font-size: 13px; flex: 1 1 260px; min-width: 0; }
+  button { font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 10px; padding: 9px 14px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .ok { color: var(--ok); font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
+  fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 14px; background: var(--panel); min-width: 0; }
+  legend { font-family: var(--display); font-weight: 700; font-size: 17px; padding: 0 6px; }
+  .row { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 8px 10px; margin-top: 8px; }
+  .row label { font-size: 13px; color: var(--muted); letter-spacing: 0.01em; }
+  .row .val { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); justify-self: end; }
+  .row.three { grid-template-columns: 112px minmax(0, 1fr) 52px; }
+  input[type=text], select, textarea { font: inherit; width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 7px 9px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=color] { width: 52px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 2px; }
+  .line { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; margin-top: 8px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .sw { width: 30px; height: 30px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
+  .sw.on { border-color: var(--fg); }
+  textarea { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 92px; resize: vertical; }
+  .note { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 700; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header>
+  <h1>Thumbnail Editor <small>Boring Business</small></h1>
+  <div class="video" id="videoName">No video loaded. Paste the settings from the review sheet below.</div>
+</header>
+
+<div class="frame" id="frame"><iframe id="preview" title="Thumbnail preview" src="about:blank"></iframe></div>
+
+<div class="bar">
+  <button class="primary" id="copyBtn" type="button">Copy settings</button>
+  <button id="resetBtn" type="button">Back to original</button>
+  <span class="hint" id="hint">Adjust, then copy the settings and paste them into the "Thumbnail settings" cell of this video's row on the review sheet. The system re-renders from them.</span>
+</div>
+
+<div class="grid">
+  <fieldset>
+    <legend>Words</legend>
+    <div class="line"><select id="l1s"><option value="">auto</option><option value="[w]">white block</option><option value="[b]">black block</option><option value="[t]">tint block</option><option value="[p]">plain</option><option value="*">accent block</option></select><input type="text" id="l1" placeholder="Line one"></div>
+    <div class="line"><select id="l2s"><option value="">auto</option><option value="[w]">white block</option><option value="[b]">black block</option><option value="[t]">tint block</option><option value="[p]">plain</option><option value="*">accent block</option></select><input type="text" id="l2" placeholder="Line two"></div>
+    <div class="line"><select id="l3s"><option value="">auto</option><option value="[w]">white block</option><option value="[b]">black block</option><option value="[t]">tint block</option><option value="[p]">plain</option><option value="*">accent block</option></select><input type="text" id="l3" placeholder="Line three (optional)"></div>
+    <div class="row three"><label for="headsize">Text size</label><input type="range" id="headsize" min="0" max="170" step="2" value="0"><span class="val" id="headsizeV">auto</span></div>
+    <div class="row"><label for="start">First block</label><select id="start"><option value="white">white</option><option value="black">black</option></select></div>
+    <div class="row"><label for="tilt">Tilt second row</label><select id="tilt"><option value="1">yes</option><option value="0">no</option></select></div>
+    <div class="note">Three to five words in total reads best. "||" splits a line into two blocks on one row.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Colours</legend>
+    <div class="row"><label for="topic">Lane</label><select id="topic">
+      <option value="money">purple (money, default)</option><option value="claude">orange (Claude)</option><option value="openai">mint (OpenAI)</option>
+      <option value="gemini">yellow (Gemini, SEO)</option><option value="meta">sky (dev, web)</option><option value="marketing">pink (marketing)</option>
+      <option value="apple">grey (Apple, productivity)</option><option value="business">beige (business)</option></select></div>
+    <div class="row three"><label for="field">Background</label><input type="text" id="field" placeholder="lane colour (leave blank)"><input type="color" id="fieldPick" value="#C9B9F7"></div>
+    <div class="swatches" id="swatches"></div>
+    <div class="row three"><label for="accent">Accent</label><input type="text" id="accent" placeholder="template accent (leave blank)"><input type="color" id="accentPick" value="#E4572E"></div>
+    <div class="note">Blank keeps the lane's own colour. Type a hex value or use the picker; the swatches are the approved lane palette.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Face</legend>
+    <div class="row"><label for="face">Expression</label><select id="face"></select></div>
+    <div class="row three"><label for="faceh">Size</label><input type="range" id="faceh" min="560" max="1040" step="10" value="880"><span class="val" id="facehV">880</span></div>
+    <div class="row three"><label for="facex">Left / right</label><input type="range" id="facex" min="-260" max="160" step="5" value="0"><span class="val" id="facexV">0</span></div>
+    <div class="row three"><label for="facetop">Up / down</label><input type="range" id="facetop" min="-120" max="220" step="4" value="24"><span class="val" id="facetopV">24</span></div>
+    <div class="note">The head must stay inside the frame. The system checks this when it renders and tries another expression if it doesn't fit.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Logo and layout</legend>
+    <div class="row"><label for="layout">Layout</label><select id="layout">
+      <option value="classic">classic</option><option value="tray">tray (several logos)</option><option value="vs">vs (two sides)</option><option value="launch">launch card</option>
+      <option value="badge">badge (big number)</option><option value="pair">pair (not this / this)</option><option value="notify">notification</option><option value="tier">tier rows</option><option value="laptop">laptop</option></select></div>
+    <div class="row"><label for="logo">Logo</label><select id="logo"></select></div>
+    <div class="row"><label for="name">Chip text</label><input type="text" id="name" placeholder="Product name"></div>
+    <div class="row three"><label for="logoscale">Logo size</label><input type="range" id="logoscale" min="0.6" max="1.8" step="0.05" value="1"><span class="val" id="logoscaleV">1.00</span></div>
+    <details><summary>Layout extras</summary>
+      <div class="row"><label for="left">vs left</label><input type="text" id="left" placeholder="claude@Claude or just a word"></div>
+      <div class="row"><label for="right">vs right</label><input type="text" id="right" placeholder="openai@ChatGPT"></div>
+      <div class="row"><label for="icons">Tray icons</label><input type="text" id="icons" placeholder="claude@Claude, canva@Canva, ..."></div>
+      <div class="row"><label for="tag">Launch tag</label><input type="text" id="tag" placeholder="Out now"></div>
+      <div class="row"><label for="num">Badge number</label><input type="text" id="num" placeholder="5"></div>
+      <div class="row"><label for="numlabel">Badge word</label><input type="text" id="numlabel" placeholder="ways"></div>
+    </details>
+  </fieldset>
+
+  <fieldset style="grid-column: 1 / -1">
+    <legend>Settings</legend>
+    <textarea id="settings" spellcheck="false" aria-label="Thumbnail settings JSON"></textarea>
+    <div class="bar" style="margin: 10px 0 0"><button id="loadBtn" type="button">Load from pasted settings</button><span class="hint">Paste a row's "Thumbnail settings" cell here if the page opened without a video.</span></div>
+  </fieldset>
+</div>
+
+<script>
+(function () {
+  const LOGOS = ["anthropic", "apple", "canva", "claude", "deepseek", "github", "gmail", "google", "googlegemini", "meta", "microsoft", "notion", "openai", "perplexity", "php", "quickbooks", "shopify", "slack", "stripe", "whatsapp", "x", "youtube"];
+  const FACES = ["brow-raised", "head-tilt", "knowing-smile", "looking-to-headline", "mid-word", "neutral", "slight-smile"];
+  const LANES = { money: "#C9B9F7", claude: "#F6DCCF", openai: "#D5EFE0", gemini: "#F7E9B5", meta: "#D6E6F7", marketing: "#F7D9E3", apple: "#E6E6E6", business: "#EDE6D6" };
+  const DEFAULTS = { layout: "classic", topic: "money", lines: ["", ""], face: "neutral", faceh: 880, facex: 0, facetop: 24, start: "white", tilt: 1,
+                     field: "", accent: "", headsize: 0, logoscale: 1, logo: "", name: "", extra: {} };
+  let original = null, slug = "", title = "";
+  const $ = (id) => document.getElementById(id);
+
+  // selects
+  const logoSel = $("logo"); logoSel.appendChild(new Option("none", ""));
+  LOGOS.forEach((l) => logoSel.appendChild(new Option(l, l)));
+  const faceSel = $("face"); FACES.forEach((f) => faceSel.appendChild(new Option(f.replace(/-/g, " "), f))); faceSel.appendChild(new Option("none", "none"));
+  const sw = $("swatches");
+  Object.entries(LANES).forEach(([k, v]) => { const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.style.background = v; b.title = k + " " + v;
+    b.setAttribute("aria-label", k + " lane colour"); b.addEventListener("click", () => { $("field").value = v; $("fieldPick").value = v; update(); }); sw.appendChild(b); });
+
+  function splitLine(raw) {
+    const m = /^(\[[wbtp]\]|\*)\s*(.*)$/.exec(raw || "");
+    return m ? [m[1], m[2]] : ["", raw || ""];
+  }
+  function fill(prm) {
+    const p = Object.assign({}, DEFAULTS, prm || {});
+    const lines = (p.lines || []).slice(0, 3);
+    for (let i = 0; i < 3; i++) { const [tok, txt] = splitLine(lines[i] || ""); $("l" + (i + 1) + "s").value = tok; $("l" + (i + 1)).value = txt; }
+    $("headsize").value = p.headsize || 0; $("start").value = p.start || "white"; $("tilt").value = String(p.tilt == null ? 1 : p.tilt);
+    $("topic").value = LANES[p.topic] ? p.topic : "money"; $("field").value = p.field || ""; $("accent").value = p.accent || "";
+    $("fieldPick").value = p.field || LANES[$("topic").value]; $("accentPick").value = p.accent || "#E4572E";
+    $("face").value = p.face || "neutral"; $("faceh").value = p.faceh || 880; $("facex").value = p.facex || 0; $("facetop").value = p.facetop == null ? 24 : p.facetop;
+    $("layout").value = p.layout || "classic"; $("logo").value = LOGOS.includes(p.logo) ? p.logo : ""; $("name").value = p.name || ""; $("logoscale").value = p.logoscale || 1;
+    const ex = p.extra || {};
+    $("left").value = ex.left || ""; $("right").value = ex.right || ""; $("icons").value = (ex.icon || []).join(", "); $("tag").value = ex.tag || ""; $("num").value = ex.num || ""; $("numlabel").value = ex.numlabel || "";
+    update();
+  }
+  function read() {
+    const lines = [];
+    for (let i = 1; i <= 3; i++) { const t = $("l" + i).value.trim(); if (t) { const tok = $("l" + i + "s").value; lines.push(tok === "*" ? "*" + t : tok + t); } }
+    const ex = {};
+    if ($("left").value.trim()) ex.left = $("left").value.trim();
+    if ($("right").value.trim()) ex.right = $("right").value.trim();
+    const icons = $("icons").value.split(",").map((s) => s.trim()).filter(Boolean); if (icons.length) ex.icon = icons;
+    if ($("tag").value.trim()) ex.tag = $("tag").value.trim();
+    if ($("num").value.trim()) ex.num = $("num").value.trim();
+    if ($("numlabel").value.trim()) ex.numlabel = $("numlabel").value.trim();
+    return { layout: $("layout").value, topic: $("topic").value, lines, face: $("face").value, faceh: +$("faceh").value, facex: +$("facex").value, facetop: +$("facetop").value,
+             start: $("start").value, tilt: +$("tilt").value, field: $("field").value.trim(), accent: $("accent").value.trim(), headsize: +$("headsize").value,
+             logoscale: Math.round(+$("logoscale").value * 100) / 100, logo: $("logo").value, name: $("name").value.trim(), extra: ex };
+  }
+  function item(v) { // "claude@Claude" -> logos/claude-ink.svg@Claude ; plain word stays
+    if (!v) return v; const at = v.indexOf("@"); const key = at >= 0 ? v.slice(0, at) : v; const label = at >= 0 ? v.slice(at + 1) : "";
+    return LOGOS.includes(key) ? "logos/" + key + "-ink.svg" + (label ? "@" + label : "@" + key) : v;
+  }
+  function query(p) {
+    const q = new URLSearchParams();
+    q.set("layout", p.layout); q.set("topic", p.topic); p.lines.forEach((l) => q.append("line", l));
+    q.set("start", p.start); q.set("tilt", String(p.tilt));
+    if (p.field) q.set("field", p.field); if (p.accent) q.set("accent", p.accent);
+    if (p.headsize) q.set("headsize", String(p.headsize)); if (p.logoscale && p.logoscale !== 1) q.set("logoscale", String(p.logoscale));
+    q.set("face", p.face === "none" ? "none" : "faces/" + p.face + ".png"); q.set("faceh", String(p.faceh)); q.set("facex", String(p.facex)); q.set("facetop", String(p.facetop));
+    if (p.logo) { q.set("logo", "logos/" + p.logo + "-ink.svg"); q.set("name", p.name || p.logo); }
+    const ex = p.extra || {};
+    if (ex.left) q.set("left", item(ex.left)); if (ex.right) q.set("right", item(ex.right));
+    (ex.icon || []).forEach((i) => q.append("icon", item(i)));
+    if (ex.tag) q.set("tag", ex.tag); if (ex.num) q.set("num", ex.num); if (ex.numlabel) q.set("numlabel", ex.numlabel);
+    q.set("grid", "1");
+    return "thumbnail.html?" + q.toString();
+  }
+  let timer = null;
+  function update() {
+    const p = read();
+    $("headsizeV").textContent = p.headsize ? p.headsize + "px" : "auto"; $("facehV").textContent = p.faceh; $("facexV").textContent = p.facex; $("facetopV").textContent = p.facetop; $("logoscaleV").textContent = p.logoscale.toFixed(2);
+    $("settings").value = JSON.stringify(Object.assign({ slug, title }, p));
+    clearTimeout(timer); timer = setTimeout(() => { $("preview").src = query(p); }, 120);
+  }
+  function scale() { const w = $("frame").clientWidth; $("preview").style.transform = "scale(" + (w / 1280) + ")"; }
+  window.addEventListener("resize", scale); scale();
+
+  document.querySelectorAll("input, select").forEach((el) => { el.addEventListener("input", update); el.addEventListener("change", update); });
+  $("fieldPick").addEventListener("input", () => { $("field").value = $("fieldPick").value; update(); });
+  $("accentPick").addEventListener("input", () => { $("accent").value = $("accentPick").value; update(); });
+  $("copyBtn").addEventListener("click", () => {
+    const text = $("settings").value;
+    const done = () => { $("hint").innerHTML = '<span class="ok">Copied.</span> Paste it into the "Thumbnail settings" cell of this video\'s row on the review sheet.'; };
+    try { navigator.clipboard.writeText(text).then(done).catch(() => { $("settings").select(); $("hint").textContent = "Select the settings box and copy it yourself (Cmd+C)."; }); }
+    catch (e) { $("settings").select(); $("hint").textContent = "Select the settings box and copy it yourself (Cmd+C)."; }
+  });
+  $("resetBtn").addEventListener("click", () => { if (original) fill(original); });
+  $("loadBtn").addEventListener("click", () => {
+    try { const p = JSON.parse($("settings").value); slug = p.slug || slug; title = p.title || title; delete p.slug; delete p.title; original = JSON.parse(JSON.stringify(p));
+          $("videoName").textContent = title ? title : (slug || "pasted settings"); fill(p); }
+    catch (e) { $("hint").textContent = "Those settings are not valid JSON; copy the whole cell from the sheet."; }
+  });
+
+  // settings arrive in the link's anchor as url-safe base64 (the review sheet builds it); otherwise paste them
+  function fromHash() {
+    const h = (location.hash || "").replace(/^#/, "");
+    if (!h) return false;
+    try {
+      const b = h.replace(/-/g, "+").replace(/_/g, "/"); const pad = b + "===".slice((b.length + 3) % 4);
+      const json = decodeURIComponent(escape(atob(pad)));
+      const p = JSON.parse(json); slug = p.slug || ""; title = p.title || ""; delete p.slug; delete p.title;
+      original = JSON.parse(JSON.stringify(p)); $("videoName").textContent = title || slug; fill(p); return true;
+    } catch (e) { return false; }
+  }
+  if (!fromHash()) { original = Object.assign({}, DEFAULTS, { lines: ["[w]Claude", "[t]Dashboards", "[p]explained"], logo: LOGOS.includes("claude") ? "claude" : "", name: "Claude", topic: "claude" });
+                     $("videoName").textContent = "Example settings (no video loaded)"; fill(original); }
+})();
+</script>

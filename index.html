@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Thumbnail Editor</title>
 <style>
-  /* Canvas-first: the real template in a scaled frame with drag handles on the face, headline and chip; controls beneath. */
+  /* Native canvas: the thumbnail is drawn here with the template's own styles; every element is a draggable object. */
   :root {
-    --bg: #F3EFE6; --panel: #FFFFFF; --fg: #1B1A17; --muted: #6B665C; --line: #D9D2C2; --accent: #E4572E; --accent-ink: #FFFFFF; --ok: #2E7D4F;
-    --sel: #1E88E5; --display: "Fraunces", Georgia, serif; --sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+    --bg: #F3EFE6; --panel: #FFFFFF; --fg: #1B1A17; --muted: #6B665C; --line: #D9D2C2; --accent: #E4572E; --accent-ink: #FFFFFF; --ok: #2E7D4F; --sel: #1E88E5;
+    --display: "Fraunces", Georgia, serif; --sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
   }
   @media (prefers-color-scheme: dark) { :root { --bg: #1E1C19; --panel: #2A2724; --fg: #F1ECE2; --muted: #B2AB9D; --line: #44403A; --accent: #F2764F; --accent-ink: #1B1A17; --ok: #6CC594; color-scheme: dark } }
   @font-face { font-family: "Fraunces"; src: url("fonts/Fraunces-VF.ttf") format("truetype"); font-weight: 100 900; }
@@ -16,49 +16,63 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.4; padding: 12px max(16px, env(safe-area-inset-left, 0px)) 40px max(16px, env(safe-area-inset-right, 0px)); }
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 10px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 8px; }
   h1 { font-family: var(--display); font-weight: 700; font-size: 24px; margin: 0; }
   h1 small { font-family: var(--sans); font-weight: 400; font-size: 13px; color: var(--muted); margin-left: 8px; }
   .video { color: var(--muted); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
-  .toolbar .sp { flex: 1 1 10px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+  .bar .sp { flex: 1 1 10px; }
   button { font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 10px; padding: 8px 13px; cursor: pointer; }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   button:disabled { opacity: 0.45; cursor: default; }
   button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--sel); outline-offset: 2px; }
   .hint { color: var(--muted); font-size: 13px; }
   .ok { color: var(--ok); font-weight: 700; }
-  .frame { position: relative; width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; background: #111; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.18); touch-action: none; user-select: none; }
-  .frame iframe { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; border: 0; transform-origin: 0 0; background: #EAE3D2; pointer-events: none; }
-  .overlay { position: absolute; inset: 0; }
-  .box { position: absolute; border: 2px dashed rgba(30,136,229,0); border-radius: 6px; cursor: grab; }
-  .box:hover, .box.sel { border-color: var(--sel); }
-  .box.sel { box-shadow: 0 0 0 2px rgba(30,136,229,0.25); }
-  .box .tag { position: absolute; left: 0; top: -22px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: var(--sel); padding: 2px 7px; border-radius: 6px; opacity: 0; }
-  .box:hover .tag, .box.sel .tag { opacity: 1; }
-  .box .h { position: absolute; right: -9px; bottom: -9px; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--sel); cursor: nwse-resize; opacity: 0; }
-  .box.sel .h, .box:hover .h { opacity: 1; }
-  .box.dragging { cursor: grabbing; }
-  .pop { position: absolute; z-index: 4; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); width: min(420px, 92%); }
-  .pop textarea { width: 100%; min-height: 86px; font: 700 18px/1.3 var(--display); border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); color: var(--fg); resize: vertical; }
-  .pop .row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
-  .pop .hint { flex: 1; }
-  .strip { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 12px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+
+  /* ---- the canvas (1280 x 720 scaled to fit) */
+  .wrap { position: relative; width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.18); touch-action: none; user-select: none; -webkit-user-select: none; }
+  #stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden;
+           background-color: var(--field); --grid-soft: color-mix(in srgb, var(--field) 91%, #3A3550 9%); }
+  #stage.grid { background-image: linear-gradient(var(--grid-soft) 2px, transparent 2px), linear-gradient(90deg, var(--grid-soft) 2px, transparent 2px); background-size: 120px 120px; background-position: -1px -1px; }
+  .obj { position: absolute; cursor: grab; }
+  .obj.dragging { cursor: grabbing; }
+  .obj.sel::after { content: ""; position: absolute; inset: -8px; border: 3px dashed var(--sel); border-radius: 10px; pointer-events: none; }
+  .obj.sel .handle { display: block; }
+  .handle { display: none; position: absolute; right: -16px; bottom: -16px; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 3px solid var(--sel); cursor: nwse-resize; z-index: 9; }
+  .face { top: 24px; right: -40px; height: 880px; z-index: 6; }
+  .face img { height: 100%; width: auto; display: block; pointer-events: none;
+              filter: drop-shadow(9px 0 0 #fff) drop-shadow(-9px 0 0 #fff) drop-shadow(0 9px 0 #fff) drop-shadow(0 -9px 0 #fff) drop-shadow(0 18px 30px rgba(0,0,0,0.18)); }
+  .head { left: 56px; top: 300px; z-index: 4; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-family: var(--display); font-weight: 900;
+          font-variation-settings: "opsz" 60, "SOFT" 0, "WONK" 0; color: #141414; line-height: 1.02; letter-spacing: 0; font-size: 120px; }
+  .head .row { display: flex; align-items: baseline; gap: 0.18em; white-space: nowrap; }
+  .head .row.tilt { transform: rotate(-1.2deg); transform-origin: left center; }
+  .head span { display: inline-block; border-radius: 12px; padding: 0.04em 0.22em 0.1em; background: #fff; color: #141414; min-width: 0.4em; }
+  .head span.black { background: #141414; color: #fff; }
+  .head span.tint { background: var(--tint); color: #141414; }
+  .head span.plain { background: transparent; padding-left: 0.06em; padding-right: 0.06em; }
+  .head span.accent { background: #141414; color: #fff; }
+  .head span[contenteditable="true"] { outline: 3px solid var(--sel); cursor: text; }
+  .chip { left: 56px; top: 52px; z-index: 3; display: flex; align-items: center; gap: 26px; background: #fff; border-radius: 30px; padding: 18px 40px 18px 28px;
+          font-family: var(--sans); font-weight: 700; font-size: 66px; color: #141414; letter-spacing: -0.01em; transform-origin: left top;
+          box-shadow: 0 10px 30px rgba(20,20,20,0.13), 0 2px 6px rgba(20,20,20,0.06); white-space: nowrap; }
+  .chip img { height: 104px; width: auto; display: block; pointer-events: none; }
+  .chip.hidden { display: none; }
+
+  /* ---- floating inspector for the selected object */
+  .insp { position: absolute; z-index: 20; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); max-width: 96%; }
+  .insp label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .insp select, .insp input[type=text] { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 5px 7px; }
+  .insp input[type=color] { width: 34px; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 1px; }
+  .insp button { padding: 5px 9px; font-size: 13px; border-radius: 8px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 10px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
   .strip label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
   .strip select, .strip input[type=text] { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 6px 8px; }
-  .swatches { display: flex; gap: 6px; align-items: center; }
   .sw { width: 28px; height: 28px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; padding: 0; }
   .sw.on { border-color: var(--fg); }
   input[type=color] { width: 40px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 1px; }
   details { margin-top: 6px; }
   summary { cursor: pointer; font-weight: 700; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 8px; }
-  fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; background: var(--panel); min-width: 0; }
-  legend { font-family: var(--display); font-weight: 700; font-size: 16px; padding: 0 6px; }
-  .r { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px 10px; align-items: center; margin-top: 6px; }
-  .r label { font-size: 13px; color: var(--muted); }
-  .r input[type=text], .r select, .r textarea { font: inherit; width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 6px 8px; }
-  textarea.settings { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 80px; width: 100%; }
+  textarea.settings { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 80px; width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); color: var(--fg); }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -68,282 +82,299 @@
   <div class="video" id="videoName">No video loaded. Paste the settings from the review sheet at the bottom.</div>
 </header>
 
-<div class="toolbar">
+<div class="bar">
   <button class="primary" id="copyBtn" type="button">Copy settings</button>
   <button id="undoBtn" type="button" disabled>Undo</button>
   <button id="resetBtn" type="button">Back to original</button>
   <span class="sp"></span>
-  <span class="hint" id="hint">Drag the face, the words or the logo. Pull the corner dot to resize. Double-click the words to edit them. Then copy the settings into the sheet.</span>
+  <span class="hint" id="hint">Click anything to select it. Drag to move, pull the corner dot to resize, double-click words to type. Colours for the selected thing appear above it.</span>
 </div>
 
-<div class="frame" id="frame">
-  <iframe id="preview" title="Thumbnail preview" src="about:blank"></iframe>
-  <div class="overlay" id="overlay">
-    <div class="box" data-kind="face"><span class="tag">Face</span><span class="h"></span></div>
-    <div class="box" data-kind="head"><span class="tag">Words</span><span class="h"></span></div>
-    <div class="box" data-kind="chip"><span class="tag">Logo</span><span class="h"></span></div>
+<div class="wrap" id="wrap">
+  <div id="stage" class="grid">
+    <div class="obj face" id="face" data-kind="face"><img id="faceImg" alt="Presenter cut-out"><span class="handle"></span></div>
+    <div class="obj chip" id="chip" data-kind="chip"><img id="chipImg" alt=""><span id="chipText">Claude</span><span class="handle"></span></div>
+    <div class="obj head" id="head" data-kind="head"><span class="handle"></span></div>
   </div>
-  <div class="pop" id="pop" hidden>
-    <textarea id="popText" aria-label="Headline lines, one per row" spellcheck="false"></textarea>
-    <div class="row"><span class="hint">One line per row, up to three. Start a line with [w] white, [b] black, [t] tint, [p] plain, or * for the accent block.</span><button class="primary" id="popOk" type="button">Done</button></div>
-  </div>
+  <div class="insp" id="insp" hidden></div>
 </div>
 
 <div class="strip">
-  <label>Colour <select id="topic">
+  <label>Background <select id="topic">
     <option value="money">purple</option><option value="claude">orange</option><option value="openai">mint</option><option value="gemini">yellow</option>
     <option value="meta">sky</option><option value="marketing">pink</option><option value="apple">grey</option><option value="business">beige</option></select></label>
-  <span class="swatches" id="swatches"></span>
+  <span id="swatches" style="display:flex;gap:6px"></span>
   <label>Custom <input type="color" id="fieldPick" value="#C9B9F7" aria-label="Custom background colour"><button id="fieldClear" type="button" title="Back to the lane colour">×</button></label>
-  <label>Face <select id="face"></select></label>
+  <label>Grid <select id="grid"><option value="1">on</option><option value="0">off</option></select></label>
+  <label>Tilt line 2 <select id="tilt"><option value="1">yes</option><option value="0">no</option></select></label>
   <label>Logo <select id="logo"></select></label>
-  <label>Chip text <input type="text" id="name" placeholder="Product" size="12"></label>
-  <label>Layout <select id="layout">
-    <option value="classic">classic</option><option value="tray">tray</option><option value="vs">vs</option><option value="launch">launch</option>
-    <option value="badge">badge</option><option value="pair">pair</option><option value="notify">notify</option><option value="tier">tier</option></select></label>
-  <label>First block <select id="start"><option value="white">white</option><option value="black">black</option></select></label>
-  <label>Tilt <select id="tilt"><option value="1">yes</option><option value="0">no</option></select></label>
+  <label>Face <select id="face_sel"></select></label>
+  <button id="addLine" type="button">+ line</button>
+  <button id="delLine" type="button">− line</button>
 </div>
 
 <details>
-  <summary>More: accent colour, layout extras, exact numbers, settings</summary>
-  <div class="grid">
-    <fieldset><legend>Exact numbers</legend>
-      <div class="r"><label for="headsize">Text size px</label><input type="text" id="headsize" inputmode="numeric" placeholder="auto"></div>
-      <div class="r"><label for="faceh">Face height px</label><input type="text" id="faceh" inputmode="numeric"></div>
-      <div class="r"><label for="facex">Face left/right</label><input type="text" id="facex" inputmode="numeric"></div>
-      <div class="r"><label for="facetop">Face up/down</label><input type="text" id="facetop" inputmode="numeric"></div>
-      <div class="r"><label for="headx">Words left/right</label><input type="text" id="headx" inputmode="numeric"></div>
-      <div class="r"><label for="heady">Words up/down</label><input type="text" id="heady" inputmode="numeric"></div>
-      <div class="r"><label for="chipx">Logo left/right</label><input type="text" id="chipx" inputmode="numeric"></div>
-      <div class="r"><label for="chipy">Logo up/down</label><input type="text" id="chipy" inputmode="numeric"></div>
-      <div class="r"><label for="logoscale">Logo scale</label><input type="text" id="logoscale" inputmode="decimal"></div>
-      <div class="r"><label for="accent">Accent colour</label><input type="text" id="accent" placeholder="template accent"></div>
-    </fieldset>
-    <fieldset><legend>Layout extras</legend>
-      <div class="r"><label for="left">vs left</label><input type="text" id="left" placeholder="claude@Claude or a word"></div>
-      <div class="r"><label for="right">vs right</label><input type="text" id="right" placeholder="openai@ChatGPT"></div>
-      <div class="r"><label for="icons">Tray icons</label><input type="text" id="icons" placeholder="claude@Claude, canva@Canva"></div>
-      <div class="r"><label for="tag">Launch tag</label><input type="text" id="tag" placeholder="Out now"></div>
-      <div class="r"><label for="num">Badge number</label><input type="text" id="num" placeholder="5"></div>
-      <div class="r"><label for="numlabel">Badge word</label><input type="text" id="numlabel" placeholder="ways"></div>
-    </fieldset>
-    <fieldset style="grid-column: 1 / -1"><legend>Settings</legend>
-      <textarea class="settings" id="settings" spellcheck="false" aria-label="Thumbnail settings JSON"></textarea>
-      <div class="toolbar" style="margin-top: 8px"><button id="loadBtn" type="button">Load from pasted settings</button><span class="hint">Paste a row's "Thumbnail settings" cell here if the page opened without a video.</span></div>
-    </fieldset>
-  </div>
+  <summary>Settings (paste a row's "Thumbnail settings" here if the page opened without a video)</summary>
+  <textarea class="settings" id="settings" spellcheck="false" aria-label="Thumbnail settings JSON"></textarea>
+  <div class="bar" style="margin-top: 8px"><button id="loadBtn" type="button">Load from pasted settings</button></div>
 </details>
 
 <script>
 (function () {
   const LOGOS = ["anthropic", "apple", "canva", "claude", "deepseek", "github", "gmail", "google", "googlegemini", "meta", "microsoft", "notion", "openai", "perplexity", "php", "quickbooks", "shopify", "slack", "stripe", "whatsapp", "x", "youtube"];
   const FACES = ["brow-raised", "head-tilt", "knowing-smile", "looking-to-headline", "mid-word", "neutral", "slight-smile"];
-  const LANES = { money: "#C9B9F7", claude: "#F6DCCF", openai: "#D5EFE0", gemini: "#F7E9B5", meta: "#D6E6F7", marketing: "#F7D9E3", apple: "#E6E6E6", business: "#EDE6D6" };
-  const DEFAULTS = { layout: "classic", topic: "money", lines: ["", ""], face: "neutral", faceh: 880, facex: 0, facetop: 24, start: "white", tilt: 1,
-                     field: "", accent: "", headsize: 0, logoscale: 1, headx: 0, heady: 0, chipx: 0, chipy: 0, manual: 0, logo: "", name: "", extra: {} };
+  const LANES = { money: ["#C9B9F7", "#AD97F0"], claude: ["#F6DCCF", "#EFC0A9"], openai: ["#D5EFE0", "#A9DFC2"], gemini: ["#F7E9B5", "#F0D878"], meta: ["#D6E6F7", "#AFCBEF"], marketing: ["#F7D9E3", "#F0B7C9"], apple: ["#E6E6E6", "#CFCFCF"], business: ["#EDE6D6", "#DCCFB0"] };
+  const TOKENS = { "[w]": "white", "[b]": "black", "[t]": "tint", "[p]": "plain" };
+  const DEFAULTS = { layout: "classic", topic: "money", lines: ["[w]Your", "[t]headline", "[p]here"], face: "neutral", faceh: 880, facex: 0, facetop: 24, start: "white", tilt: 1, field: "", accent: "",
+                     headsize: 0, logoscale: 1, headx: 56, heady: 0, chipx: 56, chipy: 52, manual: 1, colours: {}, logo: "", name: "", extra: {} };
   const $ = (id) => document.getElementById(id);
-  let P = Object.assign({}, DEFAULTS), original = null, slug = "", title = "", history = [], scale = 1, sel = null, measured = {};
+  let P = Object.assign({}, DEFAULTS), original = null, slug = "", title = "", history = [], scale = 1, sel = null, selRow = 0;
 
   const logoSel = $("logo"); logoSel.appendChild(new Option("none", "")); LOGOS.forEach((l) => logoSel.appendChild(new Option(l, l)));
-  const faceSel = $("face"); FACES.forEach((f) => faceSel.appendChild(new Option(f.replace(/-/g, " "), f))); faceSel.appendChild(new Option("none", "none"));
-  Object.entries(LANES).forEach(([k, v]) => { const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.style.background = v; b.title = k;
-    b.setAttribute("aria-label", k + " lane colour"); b.addEventListener("click", () => { push(); P.topic = k; P.field = ""; $("topic").value = k; render(true); }); $("swatches").appendChild(b); });
+  const faceSel = $("face_sel"); FACES.forEach((f) => faceSel.appendChild(new Option(f.replace(/-/g, " "), f))); faceSel.appendChild(new Option("none", "none"));
+  Object.entries(LANES).forEach(([k, v]) => { const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.style.background = v[0]; b.title = k; b.setAttribute("aria-label", k);
+    b.addEventListener("click", () => { push(); P.topic = k; P.field = ""; draw(); }); $("swatches").appendChild(b); });
 
-  // ---------------------------------------------------------------- params <-> preview
-  function item(v) { if (!v) return v; const at = v.indexOf("@"); const key = at >= 0 ? v.slice(0, at) : v; const label = at >= 0 ? v.slice(at + 1) : "";
-    return LOGOS.includes(key) ? "logos/" + key + "-ink.svg@" + (label || key) : v; }
-  function query(p) {
-    const q = new URLSearchParams();
-    q.set("layout", p.layout || "classic"); q.set("topic", p.topic || "money"); (p.lines || []).filter(Boolean).forEach((l) => q.append("line", l));
-    q.set("start", p.start || "white"); q.set("tilt", String(p.tilt == null ? 1 : p.tilt));
-    if (p.field) q.set("field", p.field); if (p.accent) q.set("accent", p.accent);
-    if (p.headsize) q.set("headsize", String(p.headsize)); if (p.logoscale && p.logoscale !== 1) q.set("logoscale", String(p.logoscale));
-    if (p.manual) q.set("manual", "1");
-    ["headx", "heady", "chipx", "chipy"].forEach((k) => { if (p[k] || p.manual) q.set(k, String(p[k] || 0)); });
-    q.set("face", p.face === "none" ? "none" : "faces/" + (p.face || "neutral") + ".png"); q.set("faceh", String(p.faceh || 880)); q.set("facex", String(p.facex || 0)); q.set("facetop", String(p.facetop == null ? 24 : p.facetop));
-    if (p.logo) { q.set("logo", "logos/" + p.logo + "-ink.svg"); q.set("name", p.name || p.logo); }
-    const ex = p.extra || {};
-    if (ex.left) q.set("left", item(ex.left)); if (ex.right) q.set("right", item(ex.right)); (ex.icon || []).forEach((i) => q.append("icon", item(i)));
-    if (ex.tag) q.set("tag", ex.tag); if (ex.num) q.set("num", ex.num); if (ex.numlabel) q.set("numlabel", ex.numlabel);
-    q.set("grid", "1");
-    return "thumbnail.html?" + q.toString();
+  // ---------------------------------------------------------------- parse lines into rows of segments
+  function parseLine(raw) {
+    return (raw || "").split("||").map((x) => x.trim()).filter(Boolean).map((seg) => {
+      let cls = "", text = seg;
+      if (seg.startsWith("*")) { cls = "accent"; text = seg.slice(1); }
+      const tk = text.slice(0, 3).toLowerCase();
+      if (TOKENS[tk]) { cls = TOKENS[tk]; text = text.slice(3).trim(); }
+      return { cls, text };
+    });
   }
-  function clean(p) { const o = Object.assign({}, p); o.lines = (o.lines || []).filter(Boolean); o.logoscale = Math.round((o.logoscale || 1) * 100) / 100;
-    ["faceh", "facex", "facetop", "headx", "heady", "chipx", "chipy", "headsize"].forEach((k) => { o[k] = Math.round(o[k] || 0); }); if (!o.faceh) o.faceh = 880; return o; }
-  function syncControls() {
-    $("topic").value = LANES[P.topic] ? P.topic : "money"; $("fieldPick").value = P.field || LANES[$("topic").value];
+  function autoCls(idx) { return ((idx % 2 === 0) !== (P.start === "black")) ? "white" : "black"; }
+  function lineString(segs) {
+    return segs.map((s) => { const tok = s.cls === "accent" ? "*" : (Object.keys(TOKENS).find((k) => TOKENS[k] === s.cls) || ""); return tok + s.text; }).join(" || ");
+  }
+
+  // ---------------------------------------------------------------- draw the whole thumbnail from P (cheap: no reload)
+  function draw() {
+    const stage = $("stage");
+    const field = P.field || (LANES[P.topic] || LANES.money)[0];
+    stage.style.setProperty("--field", field); stage.style.setProperty("--tint", (LANES[P.topic] || LANES.money)[1]);
+    stage.classList.toggle("grid", P.grid !== 0);
+    const face = $("face");
+    if (P.face === "none") { face.style.display = "none"; } else {
+      face.style.display = ""; $("faceImg").src = "faces/" + (P.face || "neutral") + ".png";
+      face.style.height = (P.faceh || 880) + "px"; face.style.top = (P.facetop == null ? 24 : P.facetop) + "px"; face.style.right = (-40 - (P.facex || 0)) + "px";
+    }
+    const chip = $("chip");
+    if (!P.logo) { chip.classList.add("hidden"); } else {
+      chip.classList.remove("hidden"); $("chipImg").src = "logos/" + P.logo + "-colour.svg"; $("chipImg").onerror = () => { $("chipImg").onerror = null; $("chipImg").src = "logos/" + P.logo + "-ink.svg"; };
+      $("chipText").textContent = P.name || P.logo;
+      chip.style.left = (P.chipx == null ? 56 : P.chipx) + "px"; chip.style.top = (P.chipy == null ? 52 : P.chipy) + "px"; chip.style.transform = "scale(" + (P.logoscale || 1) + ")";
+      chip.style.background = (P.colours || {}).chipbg || "#fff"; chip.style.color = (P.colours || {}).chipink || "#141414";
+    }
+    const head = $("head");
+    head.querySelectorAll(".row").forEach((r) => r.remove());
+    const handle = head.querySelector(".handle");
+    (P.lines || []).forEach((raw, idx) => {
+      const row = document.createElement("div"); row.className = "row" + (P.tilt !== 0 && idx === 1 ? " tilt" : ""); row.dataset.idx = idx;
+      parseLine(raw).forEach((seg) => {
+        const sp = document.createElement("span"); sp.className = seg.cls || autoCls(idx); sp.textContent = seg.text || " "; sp.dataset.cls = seg.cls;
+        const c = P.colours || {};
+        if (c["ink" + (idx + 1)]) sp.style.color = c["ink" + (idx + 1)];
+        if (c["bg" + (idx + 1)] === "none") { sp.style.background = "transparent"; sp.style.paddingLeft = "0.06em"; sp.style.paddingRight = "0.06em"; }
+        else if (c["bg" + (idx + 1)]) sp.style.background = c["bg" + (idx + 1)];
+        row.appendChild(sp);
+      });
+      head.insertBefore(row, handle);
+    });
+    head.style.fontSize = (P.headsize || 120) + "px";
+    head.style.left = (P.headx == null ? 56 : P.headx) + "px";
+    if (!P.heady) { P.heady = Math.max(200, 690 - head.offsetHeight); }
+    head.style.top = P.heady + "px";
+    syncStrip();
+    placeInspector();
+  }
+  function syncStrip() {
+    $("topic").value = LANES[P.topic] ? P.topic : "money"; $("fieldPick").value = P.field || (LANES[$("topic").value])[0];
     document.querySelectorAll(".sw").forEach((b) => b.classList.toggle("on", !P.field && b.title === $("topic").value));
-    $("face").value = P.face || "neutral"; $("logo").value = LOGOS.includes(P.logo) ? P.logo : ""; $("name").value = P.name || "";
-    $("layout").value = P.layout || "classic"; $("start").value = P.start || "white"; $("tilt").value = String(P.tilt == null ? 1 : P.tilt);
-    $("headsize").value = P.headsize ? P.headsize : ""; ["faceh", "facex", "facetop", "headx", "heady", "chipx", "chipy"].forEach((k) => { $(k).value = Math.round(P[k] || 0); });
-    $("logoscale").value = (P.logoscale || 1).toFixed(2); $("accent").value = P.accent || "";
-    const ex = P.extra || {}; $("left").value = ex.left || ""; $("right").value = ex.right || ""; $("icons").value = (ex.icon || []).join(", "); $("tag").value = ex.tag || ""; $("num").value = ex.num || ""; $("numlabel").value = ex.numlabel || "";
+    $("grid").value = P.grid === 0 ? "0" : "1"; $("tilt").value = P.tilt === 0 ? "0" : "1"; $("logo").value = LOGOS.includes(P.logo) ? P.logo : ""; $("face_sel").value = P.face || "neutral";
     $("settings").value = JSON.stringify(Object.assign({ slug, title }, clean(P)));
     $("undoBtn").disabled = history.length === 0;
   }
-  let renderTimer = null;
-  function render(now) {
-    syncControls();
-    clearTimeout(renderTimer);
-    const go = () => { $("preview").src = query(P); };
-    now ? go() : (renderTimer = setTimeout(go, 60));
+  function clean(p) {
+    const o = JSON.parse(JSON.stringify(p)); o.manual = 1; o.layout = "classic";
+    ["faceh", "facex", "facetop", "headx", "heady", "chipx", "chipy", "headsize"].forEach((k) => { o[k] = Math.round(o[k] || 0); });
+    if (!o.faceh) o.faceh = 880; if (!o.headsize) o.headsize = 120; o.logoscale = Math.round((o.logoscale || 1) * 100) / 100;
+    o.lines = (o.lines || []).filter((l) => l && l.trim()); o.colours = Object.fromEntries(Object.entries(o.colours || {}).filter(([k, v]) => v));
+    return o;
   }
-  function push() { history.push(JSON.stringify(P)); if (history.length > 60) history.shift(); $("undoBtn").disabled = false; }
-  function fit() { scale = $("frame").clientWidth / 1280; $("preview").style.transform = "scale(" + scale + ")"; place(); }
+  function push() { history.push(JSON.stringify(P)); if (history.length > 80) history.shift(); $("undoBtn").disabled = false; }
+  function fit() { scale = $("wrap").clientWidth / 1280; $("stage").style.transform = "scale(" + scale + ")"; placeInspector(); }
   window.addEventListener("resize", fit);
 
-  // ---------------------------------------------------------------- measure the template's elements and place the handles
-  function doc() { try { return $("preview").contentDocument; } catch (e) { return null; } }
-  function measure() {
-    const d = doc(); if (!d) return;
-    const pick = (selector) => { const el = d.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return null; return { el, x: r.left, y: r.top, w: r.width, h: r.height }; };
-    measured = { face: P.face === "none" ? null : pick(".face"), head: pick(".headline"), chip: pick(".chip") };
-    place();
+  // ---------------------------------------------------------------- selection + inspector
+  function select(kind, rowIdx) {
+    sel = kind; selRow = rowIdx == null ? selRow : rowIdx;
+    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === kind));
+    buildInspector();
   }
-  function place() {
-    document.querySelectorAll(".box").forEach((b) => {
-      const m = measured[b.dataset.kind];
-      if (!m) { b.hidden = true; return; }
-      b.hidden = false;
-      const pad = 6;
-      b.style.left = (m.x - pad) * scale + "px"; b.style.top = (m.y - pad) * scale + "px"; b.style.width = (m.w + pad * 2) * scale + "px"; b.style.height = (m.h + pad * 2) * scale + "px";
-      b.classList.toggle("sel", sel === b.dataset.kind);
-    });
+  function buildInspector() {
+    const insp = $("insp"); insp.innerHTML = "";
+    if (!sel) { insp.hidden = true; return; }
+    insp.hidden = false;
+    const add = (html) => { const d = document.createElement("div"); d.innerHTML = html; while (d.firstChild) insp.appendChild(d.firstChild); };
+    const c = P.colours || {};
+    if (sel === "head") {
+      const n = (P.lines || []).length;
+      const rowOpts = Array.from({ length: n }, (_, i) => `<option value="${i}" ${i === selRow ? "selected" : ""}>line ${i + 1}</option>`).join("");
+      const segs = parseLine((P.lines || [])[selRow] || ""); const cls = segs.length ? (segs[0].cls || "auto") : "auto";
+      add(`<label>Words: <select id="iRow">${rowOpts}</select></label>
+           <label>Block <select id="iCls"><option value="auto">auto</option><option value="white">white</option><option value="black">black</option><option value="tint">tint</option><option value="plain">none</option><option value="accent">accent</option></select></label>
+           <label>Block colour <input type="color" id="iBg" value="${c["bg" + (selRow + 1)] && c["bg" + (selRow + 1)] !== "none" ? c["bg" + (selRow + 1)] : "#ffffff"}"><button id="iBgClear" type="button" title="Use the block style's colour">×</button></label>
+           <label>Text colour <input type="color" id="iInk" value="${c["ink" + (selRow + 1)] || "#141414"}"><button id="iInkClear" type="button" title="Use the block style's colour">×</button></label>
+           <label>Size <input type="text" id="iSize" size="4" value="${Math.round(P.headsize || 120)}"></label>
+           <button id="iEdit" type="button">Edit words</button>`);
+      $("iCls").value = cls;
+      $("iRow").addEventListener("change", () => { selRow = +$("iRow").value; buildInspector(); });
+      $("iCls").addEventListener("change", () => { push(); const v = $("iCls").value; const s2 = parseLine((P.lines || [])[selRow] || ""); s2.forEach((s) => { s.cls = v === "auto" ? "" : v; }); P.lines[selRow] = lineString(s2); delete P.colours["bg" + (selRow + 1)]; delete P.colours["ink" + (selRow + 1)]; draw(); buildInspector(); });
+      $("iBg").addEventListener("input", () => { P.colours = P.colours || {}; P.colours["bg" + (selRow + 1)] = $("iBg").value; draw(); });
+      $("iBg").addEventListener("change", () => { push(); });
+      $("iBgClear").addEventListener("click", () => { push(); delete P.colours["bg" + (selRow + 1)]; draw(); buildInspector(); });
+      $("iInk").addEventListener("input", () => { P.colours = P.colours || {}; P.colours["ink" + (selRow + 1)] = $("iInk").value; draw(); });
+      $("iInk").addEventListener("change", () => { push(); });
+      $("iInkClear").addEventListener("click", () => { push(); delete P.colours["ink" + (selRow + 1)]; draw(); buildInspector(); });
+      $("iSize").addEventListener("change", () => { push(); P.headsize = Math.max(40, Math.min(240, +$("iSize").value || 120)); draw(); });
+      $("iEdit").addEventListener("click", () => editRow(selRow));
+    } else if (sel === "chip") {
+      const logoOpts = ['<option value="">none</option>'].concat(LOGOS.map((l) => `<option value="${l}" ${l === P.logo ? "selected" : ""}>${l}</option>`)).join("");
+      add(`<label>Logo <select id="iLogo">${logoOpts}</select></label>
+           <label>Text <input type="text" id="iName" size="12" value="${(P.name || "").replace(/"/g, "&quot;")}"></label>
+           <label>Card colour <input type="color" id="iChipBg" value="${c.chipbg || "#ffffff"}"></label>
+           <label>Text colour <input type="color" id="iChipInk" value="${c.chipink || "#141414"}"></label>
+           <label>Size <input type="text" id="iScale" size="4" value="${(P.logoscale || 1).toFixed(2)}"></label>`);
+      $("iLogo").addEventListener("change", () => { push(); P.logo = $("iLogo").value; draw(); });
+      $("iName").addEventListener("input", () => { P.name = $("iName").value; $("chipText").textContent = P.name || P.logo; syncStrip(); });
+      $("iName").addEventListener("change", () => { push(); });
+      $("iChipBg").addEventListener("input", () => { P.colours = P.colours || {}; P.colours.chipbg = $("iChipBg").value; draw(); });
+      $("iChipInk").addEventListener("input", () => { P.colours = P.colours || {}; P.colours.chipink = $("iChipInk").value; draw(); });
+      $("iScale").addEventListener("change", () => { push(); P.logoscale = Math.max(0.3, Math.min(3, +$("iScale").value || 1)); draw(); });
+    } else if (sel === "face") {
+      const faceOpts = FACES.map((f) => `<option value="${f}" ${f === P.face ? "selected" : ""}>${f.replace(/-/g, " ")}</option>`).join("") + '<option value="none">none</option>';
+      add(`<label>Expression <select id="iFace">${faceOpts}</select></label>
+           <label>Height <input type="text" id="iFaceH" size="5" value="${Math.round(P.faceh || 880)}"></label>
+           <span class="hint">Drag to move, corner dot to resize.</span>`);
+      $("iFace").addEventListener("change", () => { push(); P.face = $("iFace").value; draw(); if (P.face === "none") select(null); });
+      $("iFaceH").addEventListener("change", () => { push(); P.faceh = Math.max(300, Math.min(1400, +$("iFaceH").value || 880)); draw(); });
+    }
+    placeInspector();
   }
-  // first load in the template's automatic layout: read where it put things, then switch to manual so drags are exact
-  function adopt() {
-    const d = doc(); if (!d) return false;
-    const head = d.querySelector(".headline"), chip = d.querySelector(".chip"), face = d.querySelector(".face");
-    if (!head || d.body.getAttribute("data-ready") !== "1") return false;
-    const cs = d.defaultView.getComputedStyle(head);
-    P.headsize = Math.round(parseFloat(cs.fontSize) || 120); P.headx = Math.round(head.offsetLeft); P.heady = Math.round(head.offsetTop);
-    if (chip && !chip.classList.contains("hidden")) { P.chipx = Math.round(chip.offsetLeft); P.chipy = Math.round(chip.offsetTop); }
-    if (face) { const r = parseFloat(d.defaultView.getComputedStyle(face).right) || -40; P.facex = Math.round(-40 - r); P.faceh = Math.round(parseFloat(d.defaultView.getComputedStyle(face).height) || 880); P.facetop = Math.round(parseFloat(d.defaultView.getComputedStyle(face).top) || 24); }
-    P.manual = 1;
-    if (original && !original.manual) original = JSON.parse(JSON.stringify(P));
-    return true;
+  function placeInspector() {
+    const insp = $("insp"); if (insp.hidden || !sel) return;
+    const el = $(sel === "head" ? "head" : sel === "chip" ? "chip" : "face");
+    const r = el.getBoundingClientRect(), w = $("wrap").getBoundingClientRect();
+    let top = r.top - w.top - insp.offsetHeight - 14; if (top < 6) top = r.bottom - w.top + 14; if (top + insp.offsetHeight > w.height - 6) top = 6;
+    let left = r.left - w.left; left = Math.max(6, Math.min(left, w.width - insp.offsetWidth - 6));
+    insp.style.top = top + "px"; insp.style.left = left + "px";
   }
-  $("preview").addEventListener("load", () => {
-    const after = () => { if (!P.manual) { if (adopt()) { render(true); return; } } measure(); };
-    setTimeout(after, 120); setTimeout(measure, 500);
-  });
 
-  // ---------------------------------------------------------------- drag to move, corner to resize (live inside the iframe, then re-render)
+  // ---------------------------------------------------------------- drag and resize directly on the objects
   let drag = null;
-  function getBase(el) { if (el.dataset.baseTransform != null) return el.dataset.baseTransform; const d = doc(); const t = d && d.defaultView.getComputedStyle(el).transform; const base = (t && t !== "none") ? t : ""; el.dataset.baseTransform = base; return base; }
-  function startDrag(e, kind, resize) {
-    const m = measured[kind]; if (!m) return;
-    e.preventDefault();
-    sel = kind; place();
-    drag = { kind, resize, x0: e.clientX, y0: e.clientY, m, k: 1, dx: 0, dy: 0, base: getBase(m.el) };
-    e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
-    e.currentTarget.classList.add("dragging");
-  }
-  function moveDrag(e) {
-    if (!drag) return;
-    const dx = (e.clientX - drag.x0) / scale, dy = (e.clientY - drag.y0) / scale;
-    const el = drag.m.el;
-    if (drag.resize) {
-      const k = Math.max(0.3, Math.min(3, (drag.m.w + dx) / drag.m.w));
-      drag.k = k;
-      el.style.transformOrigin = "left top";
-      el.style.transform = drag.base + " scale(" + k + ")";
-    } else {
-      drag.dx = dx; drag.dy = dy;
-      el.style.transform = drag.base + " translate(" + dx + "px, " + dy + "px)";
-    }
-    const b = document.querySelector('.box[data-kind="' + drag.kind + '"]');
-    if (drag.resize) { b.style.width = (drag.m.w * drag.k + 12) * scale + "px"; b.style.height = (drag.m.h * drag.k + 12) * scale + "px"; }
-    else { b.style.left = (drag.m.x - 6 + drag.dx) * scale + "px"; b.style.top = (drag.m.y - 6 + drag.dy) * scale + "px"; }
-  }
-  function endDrag() {
-    if (!drag) return;
-    const { kind, resize, k, dx, dy, m } = drag;
-    document.querySelectorAll(".box").forEach((b) => b.classList.remove("dragging"));
-    const moved = resize ? Math.abs(k - 1) > 0.01 : (Math.abs(dx) > 1 || Math.abs(dy) > 1);
-    drag = null;
-    if (!moved) { render(true); return; }
-    push();
-    if (kind === "face") {
-      if (resize) { P.faceh = Math.round((P.faceh || 880) * k); }
-      else { P.facex = Math.round((P.facex || 0) + dx); P.facetop = Math.round((P.facetop == null ? 24 : P.facetop) + dy); }
-    } else if (kind === "head") {
-      if (resize) { const d = doc(); const cur = d ? parseFloat(d.defaultView.getComputedStyle(m.el).fontSize) || 120 : 120; P.headsize = Math.max(40, Math.min(220, Math.round(cur * k))); }
-      else { P.headx = Math.round((P.headx || 0) + dx); P.heady = Math.round((P.heady || 0) + dy); }
-    } else if (kind === "chip") {
-      if (resize) { P.logoscale = Math.max(0.4, Math.min(2.5, Math.round((P.logoscale || 1) * k * 100) / 100)); }
-      else { P.chipx = Math.round((P.chipx || 0) + dx); P.chipy = Math.round((P.chipy || 0) + dy); }
-    }
-    render(true);
-  }
-  document.querySelectorAll(".box").forEach((b) => {
-    const kind = b.dataset.kind;
-    b.addEventListener("pointerdown", (e) => { if (e.target.classList.contains("h")) return; startDrag(e, kind, false); });
-    b.querySelector(".h").addEventListener("pointerdown", (e) => { e.stopPropagation(); startDrag(e, kind, true); });
-    b.addEventListener("pointermove", moveDrag);
-    b.addEventListener("pointerup", endDrag);
-    b.addEventListener("pointercancel", endDrag);
-    b.addEventListener("dblclick", () => { if (kind === "head") openPop(); if (kind === "chip") { $("name").focus(); $("name").select(); } if (kind === "face") $("face").focus(); });
+  document.querySelectorAll(".obj").forEach((o) => {
+    const kind = o.dataset.kind;
+    o.addEventListener("pointerdown", (e) => {
+      if (e.target.isContentEditable) return;
+      const resize = e.target.classList.contains("handle");
+      const row = e.target.closest(".row");
+      select(kind, row ? +row.dataset.idx : null);
+      e.preventDefault();
+      const r = o.getBoundingClientRect();
+      drag = { kind, resize, x0: e.clientX, y0: e.clientY, w: r.width / scale, h: r.height / scale, start: { facex: P.facex || 0, facetop: P.facetop == null ? 24 : P.facetop, faceh: P.faceh || 880, headx: P.headx == null ? 56 : P.headx, heady: P.heady || 300, headsize: P.headsize || 120, chipx: P.chipx == null ? 56 : P.chipx, chipy: P.chipy == null ? 52 : P.chipy, logoscale: P.logoscale || 1 }, moved: false };
+      o.setPointerCapture(e.pointerId); o.classList.add("dragging"); push();
+    });
+    o.addEventListener("pointermove", (e) => {
+      if (!drag || drag.kind !== kind) return;
+      const dx = (e.clientX - drag.x0) / scale, dy = (e.clientY - drag.y0) / scale;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) drag.moved = true;
+      const s = drag.start;
+      if (drag.resize) {
+        const k = Math.max(0.25, Math.min(3, (drag.w + dx) / drag.w));
+        if (kind === "face") { P.faceh = Math.round(s.faceh * k); $("face").style.height = P.faceh + "px"; }
+        if (kind === "head") { P.headsize = Math.max(40, Math.min(240, Math.round(s.headsize * k))); $("head").style.fontSize = P.headsize + "px"; }
+        if (kind === "chip") { P.logoscale = Math.max(0.3, Math.min(3, Math.round(s.logoscale * k * 100) / 100)); $("chip").style.transform = "scale(" + P.logoscale + ")"; }
+      } else {
+        if (kind === "face") { P.facex = Math.round(s.facex - dx); P.facetop = Math.round(s.facetop + dy); $("face").style.right = (-40 - P.facex) + "px"; $("face").style.top = P.facetop + "px"; }
+        if (kind === "head") { P.headx = Math.round(s.headx + dx); P.heady = Math.round(s.heady + dy); $("head").style.left = P.headx + "px"; $("head").style.top = P.heady + "px"; }
+        if (kind === "chip") { P.chipx = Math.round(s.chipx + dx); P.chipy = Math.round(s.chipy + dy); $("chip").style.left = P.chipx + "px"; $("chip").style.top = P.chipy + "px"; }
+      }
+      placeInspector();
+    });
+    const end = () => { if (!drag) return; const moved = drag.moved; drag = null; o.classList.remove("dragging"); if (!moved) history.pop(); syncStrip(); buildInspector(); };
+    o.addEventListener("pointerup", end); o.addEventListener("pointercancel", end);
+    o.addEventListener("dblclick", (e) => { if (kind === "head") { const row = e.target.closest(".row"); editRow(row ? +row.dataset.idx : selRow); } if (kind === "chip") { select("chip"); if ($("iName")) $("iName").focus(); } });
   });
-  $("overlay").addEventListener("pointerdown", (e) => { if (e.target === $("overlay")) { sel = null; place(); } });
+  $("stage").addEventListener("pointerdown", (e) => { if (e.target === $("stage")) select(null); });
   document.addEventListener("keydown", (e) => {
-    if (!sel || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+    if (!sel || e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
     const step = e.shiftKey ? 20 : 4; let d = null;
     if (e.key === "ArrowLeft") d = [-step, 0]; if (e.key === "ArrowRight") d = [step, 0]; if (e.key === "ArrowUp") d = [0, -step]; if (e.key === "ArrowDown") d = [0, step];
     if (!d) return; e.preventDefault(); push();
-    if (sel === "face") { P.facex = (P.facex || 0) + d[0]; P.facetop = (P.facetop == null ? 24 : P.facetop) + d[1]; }
-    if (sel === "head") { P.headx = (P.headx || 0) + d[0]; P.heady = (P.heady || 0) + d[1]; }
-    if (sel === "chip") { P.chipx = (P.chipx || 0) + d[0]; P.chipy = (P.chipy || 0) + d[1]; }
-    render(true);
+    if (sel === "face") { P.facex = (P.facex || 0) - d[0]; P.facetop = (P.facetop == null ? 24 : P.facetop) + d[1]; }
+    if (sel === "head") { P.headx = (P.headx == null ? 56 : P.headx) + d[0]; P.heady = (P.heady || 300) + d[1]; }
+    if (sel === "chip") { P.chipx = (P.chipx == null ? 56 : P.chipx) + d[0]; P.chipy = (P.chipy == null ? 52 : P.chipy) + d[1]; }
+    draw();
   });
 
-  // ---------------------------------------------------------------- in-place text editing
-  function openPop() {
-    const m = measured.head; const pop = $("pop");
-    pop.hidden = false;
-    pop.style.left = Math.max(8, Math.min(($("frame").clientWidth - pop.offsetWidth - 8), (m ? m.x * scale : 40))) + "px";
-    pop.style.top = Math.max(8, ((m ? (m.y + m.h) * scale : 200) + 10)) + "px";
-    $("popText").value = (P.lines || []).filter(Boolean).join("\n");
-    $("popText").focus();
+  // ---------------------------------------------------------------- type straight into a line
+  function editRow(idx) {
+    const row = $("head").querySelector('.row[data-idx="' + idx + '"]'); if (!row) return;
+    select("head", idx);
+    const spans = Array.from(row.querySelectorAll("span"));
+    const segs = parseLine((P.lines || [])[idx] || "");
+    push();
+    spans.forEach((sp, i) => {
+      sp.contentEditable = "true";
+      const finish = () => { sp.contentEditable = "false"; if (segs[i]) segs[i].text = sp.textContent.replace(/\n/g, " ").trim() || " "; P.lines[idx] = lineString(segs); syncStrip(); };
+      sp.addEventListener("blur", finish, { once: true });
+      sp.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === "Escape") { ev.preventDefault(); sp.blur(); } });
+    });
+    const first = spans[0]; if (!first) return; first.focus();
+    const range = document.createRange(); range.selectNodeContents(first); const s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(range);
   }
-  function closePop(apply) {
-    const pop = $("pop"); if (pop.hidden) return;
-    if (apply) { const lines = $("popText").value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 3); if (JSON.stringify(lines) !== JSON.stringify((P.lines || []).filter(Boolean))) { push(); P.lines = lines; } }
-    pop.hidden = true; render(true);
-  }
-  $("popOk").addEventListener("click", () => closePop(true));
-  $("popText").addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(false); if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) closePop(true); });
-  document.addEventListener("pointerdown", (e) => { if (!$("pop").hidden && !$("pop").contains(e.target)) closePop(true); }, true);
+  $("addLine").addEventListener("click", () => { if ((P.lines || []).length >= 3) return; push(); P.lines = (P.lines || []).concat(["[p]new line"]); draw(); editRow(P.lines.length - 1); });
+  $("delLine").addEventListener("click", () => { if ((P.lines || []).length <= 1) return; push(); P.lines = P.lines.slice(0, -1); delete P.colours["bg" + (P.lines.length + 1)]; delete P.colours["ink" + (P.lines.length + 1)]; draw(); buildInspector(); });
 
-  // ---------------------------------------------------------------- strip and exact controls
-  const strip = { topic: (v) => { P.topic = v; P.field = ""; }, face: (v) => { P.face = v; }, logo: (v) => { P.logo = v; if (v && !P.name) P.name = v.charAt(0).toUpperCase() + v.slice(1); },
-                  name: (v) => { P.name = v; }, layout: (v) => { P.layout = v; }, start: (v) => { P.start = v; }, tilt: (v) => { P.tilt = +v; }, accent: (v) => { P.accent = v.trim(); },
-                  headsize: (v) => { P.headsize = +v || 0; }, faceh: (v) => { P.faceh = +v || 880; }, facex: (v) => { P.facex = +v || 0; }, facetop: (v) => { P.facetop = +v || 0; },
-                  headx: (v) => { P.headx = +v || 0; }, heady: (v) => { P.heady = +v || 0; }, chipx: (v) => { P.chipx = +v || 0; }, chipy: (v) => { P.chipy = +v || 0; }, logoscale: (v) => { P.logoscale = +v || 1; },
-                  left: (v) => { P.extra = P.extra || {}; P.extra.left = v.trim(); }, right: (v) => { P.extra = P.extra || {}; P.extra.right = v.trim(); },
-                  icons: (v) => { P.extra = P.extra || {}; P.extra.icon = v.split(",").map((s) => s.trim()).filter(Boolean); }, tag: (v) => { P.extra = P.extra || {}; P.extra.tag = v.trim(); },
-                  num: (v) => { P.extra = P.extra || {}; P.extra.num = v.trim(); }, numlabel: (v) => { P.extra = P.extra || {}; P.extra.numlabel = v.trim(); } };
-  Object.keys(strip).forEach((id) => { const el = $(id); el.addEventListener("change", () => { push(); strip[id](el.value); render(true); }); });
-  $("fieldPick").addEventListener("input", () => { P.field = $("fieldPick").value; render(); });
-  $("fieldPick").addEventListener("change", () => { push(); P.field = $("fieldPick").value; render(true); });
-  $("fieldClear").addEventListener("click", () => { push(); P.field = ""; render(true); });
-  $("undoBtn").addEventListener("click", () => { if (!history.length) return; P = JSON.parse(history.pop()); render(true); });
-  $("resetBtn").addEventListener("click", () => { if (original) { push(); P = JSON.parse(JSON.stringify(original)); render(true); } });
+  // ---------------------------------------------------------------- strip controls
+  $("topic").addEventListener("change", () => { push(); P.topic = $("topic").value; P.field = ""; draw(); });
+  $("fieldPick").addEventListener("input", () => { P.field = $("fieldPick").value; draw(); });
+  $("fieldPick").addEventListener("change", () => { push(); });
+  $("fieldClear").addEventListener("click", () => { push(); P.field = ""; draw(); });
+  $("grid").addEventListener("change", () => { push(); P.grid = +$("grid").value; draw(); });
+  $("tilt").addEventListener("change", () => { push(); P.tilt = +$("tilt").value; draw(); });
+  $("logo").addEventListener("change", () => { push(); P.logo = $("logo").value; if (P.logo && !P.name) P.name = P.logo.charAt(0).toUpperCase() + P.logo.slice(1); draw(); });
+  $("face_sel").addEventListener("change", () => { push(); P.face = $("face_sel").value; draw(); });
+  $("undoBtn").addEventListener("click", () => { if (!history.length) return; P = JSON.parse(history.pop()); draw(); buildInspector(); });
+  $("resetBtn").addEventListener("click", () => { if (original) { push(); P = JSON.parse(JSON.stringify(original)); draw(); buildInspector(); } });
   $("copyBtn").addEventListener("click", () => {
     const text = $("settings").value;
-    const done = () => { $("hint").innerHTML = '<span class="ok">Copied.</span> Paste it into the "Thumbnail settings" cell of this video\'s row on the review sheet. The system re-renders from it.'; };
+    const done = () => { $("hint").innerHTML = '<span class="ok">Copied.</span> Paste it into the "Thumbnail settings" cell of this video\'s row on the review sheet. The system re-renders from it within 5 minutes.'; };
     const manual = () => { $("settings").closest("details").open = true; $("settings").select(); $("hint").textContent = "Select the settings box and copy it yourself (Cmd+C)."; };
     try { navigator.clipboard.writeText(text).then(done).catch(manual); } catch (e) { manual(); }
   });
-  function load(p, label) { slug = p.slug || ""; title = p.title || ""; delete p.slug; delete p.title; P = Object.assign({}, DEFAULTS, p); original = JSON.parse(JSON.stringify(P)); history = []; $("videoName").textContent = title || slug || label; fit(); render(true); }
+  function load(p, label) {
+    slug = p.slug || ""; title = p.title || ""; delete p.slug; delete p.title;
+    P = Object.assign({}, DEFAULTS, p); P.colours = P.colours || {};
+    if (!p.manual) { P.headx = 56; P.heady = 0; P.chipx = 56; P.chipy = 52; P.headsize = 0; }
+    if (!P.headsize) {
+      P.headsize = 132; P.heady = 1; draw();
+      const widest = () => Math.max(0, ...Array.from($("head").querySelectorAll(".row")).map((r) => r.scrollWidth));
+      while (P.headsize > 72 && widest() > 760) { P.headsize -= 4; $("head").style.fontSize = P.headsize + "px"; }
+      P.heady = 0;
+    }
+    original = JSON.parse(JSON.stringify(P)); history = []; $("videoName").textContent = title || slug || label; fit(); draw(); select(null);
+  }
   $("loadBtn").addEventListener("click", () => { try { load(JSON.parse($("settings").value), "pasted settings"); } catch (e) { $("hint").textContent = "Those settings are not valid JSON; copy the whole cell from the sheet."; } });
   function fromHash() {
     const h = (location.hash || "").replace(/^#/, ""); if (!h) return false;
     try { const b = h.replace(/-/g, "+").replace(/_/g, "/"); const pad = b + "===".slice((b.length + 3) % 4); const p = JSON.parse(decodeURIComponent(escape(atob(pad)))); load(p, "from link"); return true; } catch (e) { return false; }
   }
   window.addEventListener("hashchange", fromHash);
-  if (!fromHash()) load({ layout: "classic", topic: "claude", lines: ["[w]Claude", "[t]Dashboards", "[p]explained"], logo: LOGOS.includes("claude") ? "claude" : "", name: "Claude" }, "Example (no video loaded)");
+  document.fonts.ready.then(() => { if (!fromHash()) load({ layout: "classic", topic: "claude", lines: ["[w]Claude", "[t]Dashboards", "[p]explained"], logo: LOGOS.includes("claude") ? "claude" : "", name: "Claude" }, "Example (no video loaded)"); });
 })();
 </script>
 </body>

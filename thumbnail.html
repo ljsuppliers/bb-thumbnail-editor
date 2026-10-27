@@ -536,6 +536,16 @@
     head.style.fontSize = size + "px"; head.style.left = n("headx", 56) + "px"; head.style.top = n("heady", 300) + "px"; head.style.transform = "none";
     if (!chip.classList.contains("hidden")) { chip.style.left = n("chipx", 56) + "px"; chip.style.top = n("chipy", 56) + "px"; chip.style.right = "auto"; chip.style.transform = "scale(" + n("logoscale", 1) + ")"; chip.style.transformOrigin = "left top"; }
     if (face.isConnected) { face.style.height = n("faceh", 880) + "px"; face.style.top = n("facetop", 24) + "px"; face.style.right = (-40 - n("facex", 0)) + "px"; }
+    // per-line colours from the editor: ink1..3 (text), bg1..3 (block; "none" = no block), chipbg / chipink
+    Array.from(head.querySelectorAll(".row")).forEach(function (row, i) {
+      const ink = q.get("ink" + (i + 1)), bg = q.get("bg" + (i + 1));
+      row.querySelectorAll("span").forEach(function (sp) {
+        if (ink) sp.style.color = ink;
+        if (bg === "none") { sp.style.background = "transparent"; sp.style.paddingLeft = "0.06em"; sp.style.paddingRight = "0.06em"; }
+        else if (bg) sp.style.background = bg;
+      });
+    });
+    if (!chip.classList.contains("hidden")) { if (q.get("chipbg")) chip.style.background = q.get("chipbg"); if (q.get("chipink")) chip.style.color = q.get("chipink"); }
     head.dataset.size = size;
     document.body.dataset.check = "manual headline=" + size + "px headAt=" + n("headx", 56) + "," + n("heady", 300) + " chipAt=" + n("chipx", 56) + "," + n("chipy", 56) + " faceRight=" + face.style.right + " faceH=" + n("faceh", 880);
     document.body.setAttribute("data-ready", "1");

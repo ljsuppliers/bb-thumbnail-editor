@@ -64,6 +64,7 @@
   .insp select, .insp input[type=text] { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 5px 7px; }
   .insp input[type=color] { width: 34px; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 1px; }
   .insp button { padding: 5px 9px; font-size: 13px; border-radius: 8px; }
+  .insp button.pm { padding: 3px 9px; font-size: 15px; font-weight: 800; min-width: 30px; }
   .strip { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 10px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
   .strip label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
   .strip select, .strip input[type=text] { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 6px 8px; }
@@ -108,7 +109,7 @@
   <label>Custom <input type="color" id="fieldPick" value="#C9B9F7" aria-label="Custom background colour"><button id="fieldClear" type="button" title="Back to the lane colour">×</button></label>
   <label>Grid <select id="grid"><option value="1">on</option><option value="0">off</option></select></label>
   <label>Tilt line 2 <select id="tilt"><option value="1">yes</option><option value="0">no</option></select></label>
-  <label>Logo <select id="logo"></select></label>
+  <label>Add / change logo <select id="logo"></select></label>
   <label>Face <select id="face_sel"></select></label>
   <button id="addLine" type="button">+ line</button>
   <button id="delLine" type="button">− line</button>
@@ -231,7 +232,7 @@
            <label>Block <select id="iCls"><option value="auto">auto</option><option value="white">white</option><option value="black">black</option><option value="tint">tint</option><option value="plain">none</option><option value="accent">accent</option></select></label>
            <label>Block colour <input type="color" id="iBg" value="${c["bg" + (selRow + 1)] && c["bg" + (selRow + 1)] !== "none" ? c["bg" + (selRow + 1)] : "#ffffff"}"><button id="iBgClear" type="button" title="Use the block style's colour">×</button></label>
            <label>Text colour <input type="color" id="iInk" value="${c["ink" + (selRow + 1)] || "#141414"}"><button id="iInkClear" type="button" title="Use the block style's colour">×</button></label>
-           <label>Size <input type="text" id="iSize" size="4" value="${Math.round(P.headsize || 120)}"></label>
+           <label>Size <button type="button" class="pm" data-pm="headsize" data-d="-4">−</button><input type="text" id="iSize" size="4" value="${Math.round(P.headsize || 120)}"><button type="button" class="pm" data-pm="headsize" data-d="4">+</button></label>
            <button id="iEdit" type="button">Edit words</button>`);
       $("iCls").value = cls;
       $("iRow").addEventListener("change", () => { selRow = +$("iRow").value; buildInspector(); });
@@ -250,7 +251,7 @@
            <label>Text <input type="text" id="iName" size="12" value="${(P.name || "").replace(/"/g, "&quot;")}"></label>
            <label>Card colour <input type="color" id="iChipBg" value="${c.chipbg || "#ffffff"}"></label>
            <label>Text colour <input type="color" id="iChipInk" value="${c.chipink || "#141414"}"></label>
-           <label>Size <input type="text" id="iScale" size="4" value="${(P.logoscale || 1).toFixed(2)}"></label>`);
+           <label>Size <button type="button" class="pm" data-pm="logoscale" data-d="-0.05">−</button><input type="text" id="iScale" size="4" value="${(P.logoscale || 1).toFixed(2)}"><button type="button" class="pm" data-pm="logoscale" data-d="0.05">+</button></label>`);
       $("iLogo").addEventListener("change", () => { push(); P.logo = $("iLogo").value; draw(); });
       $("iName").addEventListener("input", () => { P.name = $("iName").value; $("chipText").textContent = P.name || P.logo; syncStrip(); });
       $("iName").addEventListener("change", () => { push(); });
@@ -260,11 +261,19 @@
     } else if (sel === "face") {
       const faceOpts = FACES.map((f) => `<option value="${f}" ${f === P.face ? "selected" : ""}>${f.replace(/-/g, " ")}</option>`).join("") + '<option value="none">none</option>';
       add(`<label>Expression <select id="iFace">${faceOpts}</select></label>
-           <label>Height <input type="text" id="iFaceH" size="5" value="${Math.round(P.faceh || 880)}"></label>
+           <label>Height <button type="button" class="pm" data-pm="faceh" data-d="-20">−</button><input type="text" id="iFaceH" size="5" value="${Math.round(P.faceh || 880)}"><button type="button" class="pm" data-pm="faceh" data-d="20">+</button></label>
            <span class="hint">Drag to move, corner dot to resize.</span>`);
       $("iFace").addEventListener("change", () => { push(); P.face = $("iFace").value; draw(); if (P.face === "none") select(null); });
       $("iFaceH").addEventListener("change", () => { push(); P.faceh = Math.max(300, Math.min(1400, +$("iFaceH").value || 880)); draw(); });
     }
+    insp.querySelectorAll(".pm").forEach((btn) => btn.addEventListener("click", () => {
+      push();
+      const k = btn.dataset.pm, d = parseFloat(btn.dataset.d);
+      if (k === "headsize") P.headsize = Math.max(40, Math.min(240, Math.round((P.headsize || 120) + d)));
+      if (k === "logoscale") P.logoscale = Math.max(0.3, Math.min(3, Math.round(((P.logoscale || 1) + d) * 100) / 100));
+      if (k === "faceh") P.faceh = Math.max(300, Math.min(1400, Math.round((P.faceh || 880) + d)));
+      draw(); buildInspector();
+    }));
     placeInspector();
   }
   function placeInspector() {

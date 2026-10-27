@@ -128,7 +128,7 @@
   const LANES = { money: ["#C9B9F7", "#AD97F0"], claude: ["#F6DCCF", "#EFC0A9"], openai: ["#D5EFE0", "#A9DFC2"], gemini: ["#F7E9B5", "#F0D878"], meta: ["#D6E6F7", "#AFCBEF"], marketing: ["#F7D9E3", "#F0B7C9"], apple: ["#E6E6E6", "#CFCFCF"], business: ["#EDE6D6", "#DCCFB0"] };
   const TOKENS = { "[w]": "white", "[b]": "black", "[t]": "tint", "[p]": "plain" };
   const DEFAULTS = { layout: "classic", topic: "money", lines: ["[w]Your", "[t]headline", "[p]here"], face: "neutral", faceh: 880, facex: 0, facetop: 24, start: "white", tilt: 1, field: "", accent: "",
-                     headsize: 0, logoscale: 1, headx: 56, heady: 0, chipx: 56, chipy: 52, manual: 1, colours: {}, logo: "", name: "", extra: {} };
+                     headsize: 0, logoscale: 1, headx: 56, heady: 0, chipx: 56, chipy: 52, chipfont: 0, chiplogo: 0, manual: 1, colours: {}, logo: "", name: "", extra: {} };
   const $ = (id) => document.getElementById(id);
   let P = Object.assign({}, DEFAULTS), original = null, slug = "", title = "", history = [], scale = 1, sel = null, selRow = 0;
 
@@ -141,7 +141,7 @@
   function parseLine(raw) {
     return (raw || "").split("||").map((x) => x.trim()).filter(Boolean).map((seg) => {
       let cls = "", text = seg;
-      if (seg.startsWith("*")) { cls = "accent"; text = seg.slice(1); }
+      if (seg.startsWith("*")) { cls = ""; text = seg.slice(1); }   // the current scheme ignores the accent marker: white/black alternate
       const tk = text.slice(0, 3).toLowerCase();
       if (TOKENS[tk]) { cls = TOKENS[tk]; text = text.slice(3).trim(); }
       return { cls, text };
@@ -169,6 +169,7 @@
       $("chipText").textContent = P.name || P.logo;
       chip.style.left = (P.chipx == null ? 56 : P.chipx) + "px"; chip.style.top = (P.chipy == null ? 52 : P.chipy) + "px"; chip.style.transform = "scale(" + (P.logoscale || 1) + ")";
       chip.style.background = (P.colours || {}).chipbg || "#fff"; chip.style.color = (P.colours || {}).chipink || "#141414";
+      chip.style.fontSize = (P.chipfont > 0 ? P.chipfont : 66) + "px"; $("chipImg").style.height = (P.chiplogo > 0 ? P.chiplogo : 104) + "px";
     }
     const head = $("head");
     head.querySelectorAll(".row").forEach((r) => r.remove());
@@ -201,7 +202,7 @@
   }
   function clean(p) {
     const o = JSON.parse(JSON.stringify(p)); o.manual = 1; o.layout = "classic";
-    ["faceh", "facex", "facetop", "headx", "heady", "chipx", "chipy", "headsize"].forEach((k) => { o[k] = Math.round(o[k] || 0); });
+    ["faceh", "facex", "facetop", "headx", "heady", "chipx", "chipy", "chipfont", "chiplogo", "headsize"].forEach((k) => { o[k] = Math.round(o[k] || 0); });
     if (!o.faceh) o.faceh = 880; if (!o.headsize) o.headsize = 120; o.logoscale = Math.round((o.logoscale || 1) * 100) / 100;
     o.lines = (o.lines || []).filter((l) => l && l.trim()); o.colours = Object.fromEntries(Object.entries(o.colours || {}).filter(([k, v]) => v));
     return o;

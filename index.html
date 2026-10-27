@@ -393,7 +393,7 @@
   function load(p, label) {
     slug = p.slug || ""; title = p.title || ""; delete p.slug; delete p.title;
     P = Object.assign({}, DEFAULTS, p); P.colours = P.colours || {};
-    if (!p.manual) { P.headx = 56; P.heady = 0; P.chipx = 56; P.chipy = 52; P.headsize = 0; }
+    if (!p.manual) { if (!(p.heady > 0)) { P.headx = 56; P.heady = 0; } if (!(p.chipy > 0)) { P.chipx = 56; P.chipy = 52; } if (!(p.headsize > 0)) P.headsize = 0; }
     if (!P.headsize) {
       P.headsize = 132; P.heady = 1; draw();
       const widest = () => Math.max(0, ...Array.from($("head").querySelectorAll(".row")).map((r) => r.scrollWidth));

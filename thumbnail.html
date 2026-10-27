@@ -266,8 +266,9 @@
   if (q.get("headsize") && parseInt(q.get("headsize"), 10) > 0) root.setProperty("--headsize", parseInt(q.get("headsize"), 10) + "px");
   if (q.get("logoscale")) root.setProperty("--logoscale", parseFloat(q.get("logoscale")) || 1);
   // editor v2 (27 Oct 2026): drag offsets in px for the headline and the chip, applied after the template has laid them out
-  root.setProperty("--headx", (parseInt(q.get("headx") || "0", 10) || 0) + "px"); root.setProperty("--heady", (parseInt(q.get("heady") || "0", 10) || 0) + "px");
-  root.setProperty("--chipx", (parseInt(q.get("chipx") || "0", 10) || 0) + "px"); root.setProperty("--chipy", (parseInt(q.get("chipy") || "0", 10) || 0) + "px");
+  const MANUAL = q.get("manual") === "1";   // editor v3 (27 Oct 2026): manual = absolute positions from the settings, no fitting
+  root.setProperty("--headx", (MANUAL ? 0 : (parseInt(q.get("headx") || "0", 10) || 0)) + "px"); root.setProperty("--heady", (MANUAL ? 0 : (parseInt(q.get("heady") || "0", 10) || 0)) + "px");
+  root.setProperty("--chipx", (MANUAL ? 0 : (parseInt(q.get("chipx") || "0", 10) || 0)) + "px"); root.setProperty("--chipy", (MANUAL ? 0 : (parseInt(q.get("chipy") || "0", 10) || 0)) + "px");
   root.setProperty("--grid-soft", "color-mix(in srgb, " + fieldColour + " 91%, #3A3550 9%)");
 
   const layout = (q.get("layout") || "classic").toLowerCase();
@@ -529,7 +530,18 @@
     return v;
   }
 
+  function manualPlace() {
+    const n = function (k, d) { const v = parseFloat(q.get(k)); return isNaN(v) ? d : v; };
+    const size = n("headsize", 0) > 0 ? n("headsize", 0) : region.size;
+    head.style.fontSize = size + "px"; head.style.left = n("headx", 56) + "px"; head.style.top = n("heady", 300) + "px"; head.style.transform = "none";
+    if (!chip.classList.contains("hidden")) { chip.style.left = n("chipx", 56) + "px"; chip.style.top = n("chipy", 56) + "px"; chip.style.right = "auto"; chip.style.transform = "scale(" + n("logoscale", 1) + ")"; chip.style.transformOrigin = "left top"; }
+    if (face.isConnected) { face.style.height = n("faceh", 880) + "px"; face.style.top = n("facetop", 24) + "px"; face.style.right = (-40 - n("facex", 0)) + "px"; }
+    head.dataset.size = size;
+    document.body.dataset.check = "manual headline=" + size + "px headAt=" + n("headx", 56) + "," + n("heady", 300) + " chipAt=" + n("chipx", 56) + "," + n("chipy", 56) + " faceRight=" + face.style.right + " faceH=" + n("faceh", 880);
+    document.body.setAttribute("data-ready", "1");
+  }
   function fit() {
+    if (MANUAL) { manualPlace(); return; }
     buildProfile();
     if (dock) {
       const replyH = (rp && dock.classList.contains("notify")) ? rp.offsetHeight + 16 : 0;

@@ -141,7 +141,7 @@
   const FACES = ["brow-raised", "head-tilt", "knowing-smile", "looking-to-headline", "mid-word", "neutral", "slight-smile"];
   const LANES = { money: "#C9B9F7", claude: "#F6DCCF", openai: "#D5EFE0", gemini: "#F7E9B5", meta: "#D6E6F7", marketing: "#F7D9E3", apple: "#E6E6E6", business: "#EDE6D6" };
   const DEFAULTS = { layout: "classic", topic: "money", lines: ["", ""], face: "neutral", faceh: 880, facex: 0, facetop: 24, start: "white", tilt: 1,
-                     field: "", accent: "", headsize: 0, logoscale: 1, headx: 0, heady: 0, chipx: 0, chipy: 0, logo: "", name: "", extra: {} };
+                     field: "", accent: "", headsize: 0, logoscale: 1, headx: 0, heady: 0, chipx: 0, chipy: 0, manual: 0, logo: "", name: "", extra: {} };
   const $ = (id) => document.getElementById(id);
   let P = Object.assign({}, DEFAULTS), original = null, slug = "", title = "", history = [], scale = 1, sel = null, measured = {};
 
@@ -159,7 +159,8 @@
     q.set("start", p.start || "white"); q.set("tilt", String(p.tilt == null ? 1 : p.tilt));
     if (p.field) q.set("field", p.field); if (p.accent) q.set("accent", p.accent);
     if (p.headsize) q.set("headsize", String(p.headsize)); if (p.logoscale && p.logoscale !== 1) q.set("logoscale", String(p.logoscale));
-    ["headx", "heady", "chipx", "chipy"].forEach((k) => { if (p[k]) q.set(k, String(p[k])); });
+    if (p.manual) q.set("manual", "1");
+    ["headx", "heady", "chipx", "chipy"].forEach((k) => { if (p[k] || p.manual) q.set(k, String(p[k] || 0)); });
     q.set("face", p.face === "none" ? "none" : "faces/" + (p.face || "neutral") + ".png"); q.set("faceh", String(p.faceh || 880)); q.set("facex", String(p.facex || 0)); q.set("facetop", String(p.facetop == null ? 24 : p.facetop));
     if (p.logo) { q.set("logo", "logos/" + p.logo + "-ink.svg"); q.set("name", p.name || p.logo); }
     const ex = p.extra || {};
@@ -210,7 +211,23 @@
       b.classList.toggle("sel", sel === b.dataset.kind);
     });
   }
-  $("preview").addEventListener("load", () => { setTimeout(measure, 80); setTimeout(measure, 400); });
+  // first load in the template's automatic layout: read where it put things, then switch to manual so drags are exact
+  function adopt() {
+    const d = doc(); if (!d) return false;
+    const head = d.querySelector(".headline"), chip = d.querySelector(".chip"), face = d.querySelector(".face");
+    if (!head || d.body.getAttribute("data-ready") !== "1") return false;
+    const cs = d.defaultView.getComputedStyle(head);
+    P.headsize = Math.round(parseFloat(cs.fontSize) || 120); P.headx = Math.round(head.offsetLeft); P.heady = Math.round(head.offsetTop);
+    if (chip && !chip.classList.contains("hidden")) { P.chipx = Math.round(chip.offsetLeft); P.chipy = Math.round(chip.offsetTop); }
+    if (face) { const r = parseFloat(d.defaultView.getComputedStyle(face).right) || -40; P.facex = Math.round(-40 - r); P.faceh = Math.round(parseFloat(d.defaultView.getComputedStyle(face).height) || 880); P.facetop = Math.round(parseFloat(d.defaultView.getComputedStyle(face).top) || 24); }
+    P.manual = 1;
+    if (original && !original.manual) original = JSON.parse(JSON.stringify(P));
+    return true;
+  }
+  $("preview").addEventListener("load", () => {
+    const after = () => { if (!P.manual) { if (adopt()) { render(true); return; } } measure(); };
+    setTimeout(after, 120); setTimeout(measure, 500);
+  });
 
   // ---------------------------------------------------------------- drag to move, corner to resize (live inside the iframe, then re-render)
   let drag = null;

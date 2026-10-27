@@ -1,123 +1,139 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Thumbnail Editor</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <style>
-  /* Layout: live preview on top (the real thumbnail template in a scaled frame), controls in a wrapping grid beneath, one
-     sticky bar with the settings to copy back into the review sheet. */
+  /* Canvas-first: the real template in a scaled frame with drag handles on the face, headline and chip; controls beneath. */
   :root {
-    --bg: #F3EFE6; --panel: #FFFFFF; --fg: #1B1A17; --muted: #6B665C; --line: #D9D2C2; --accent: #E4572E; --accent-ink: #FFFFFF;
-    --ok: #2E7D4F; --display: "Fraunces", Georgia, serif; --sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+    --bg: #F3EFE6; --panel: #FFFFFF; --fg: #1B1A17; --muted: #6B665C; --line: #D9D2C2; --accent: #E4572E; --accent-ink: #FFFFFF; --ok: #2E7D4F;
+    --sel: #1E88E5; --display: "Fraunces", Georgia, serif; --sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
   }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1E1C19; --panel: #2A2724; --fg: #F1ECE2; --muted: #B2AB9D; --line: #44403A; --accent: #F2764F; --accent-ink: #1B1A17; --ok: #6CC594; color-scheme: dark } }
-  :root[data-theme="dark"] { --bg: #1E1C19; --panel: #2A2724; --fg: #F1ECE2; --muted: #B2AB9D; --line: #44403A; --accent: #F2764F; --accent-ink: #1B1A17; --ok: #6CC594; color-scheme: dark }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1E1C19; --panel: #2A2724; --fg: #F1ECE2; --muted: #B2AB9D; --line: #44403A; --accent: #F2764F; --accent-ink: #1B1A17; --ok: #6CC594; color-scheme: dark } }
   @font-face { font-family: "Fraunces"; src: url("fonts/Fraunces-VF.ttf") format("truetype"); font-weight: 100 900; }
   @font-face { font-family: "Instrument Sans"; src: url("fonts/InstrumentSans-VF.ttf") format("truetype"); font-weight: 400 700; }
-  html, body { height: 100%; }
-  body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.4;
-         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 40px; }
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; margin-bottom: 12px; }
-  h1 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -0.01em; }
-  h1 small { font-family: var(--sans); font-weight: 400; font-size: 14px; color: var(--muted); margin-left: 8px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.4; padding: 12px max(16px, env(safe-area-inset-left, 0px)) 40px max(16px, env(safe-area-inset-right, 0px)); }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 10px; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: 24px; margin: 0; }
+  h1 small { font-family: var(--sans); font-weight: 400; font-size: 13px; color: var(--muted); margin-left: 8px; }
   .video { color: var(--muted); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
-  .frame { position: relative; width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; background: #111; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
-  .frame iframe { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; border: 0; transform-origin: 0 0; background: #EAE3D2; }
-  .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; padding: 10px 12px;
-         background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-  .bar .hint { color: var(--muted); font-size: 13px; flex: 1 1 260px; min-width: 0; }
-  button { font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 10px; padding: 9px 14px; cursor: pointer; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+  .toolbar .sp { flex: 1 1 10px; }
+  button { font: inherit; font-weight: 700; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 10px; padding: 8px 13px; cursor: pointer; }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--sel); outline-offset: 2px; }
+  .hint { color: var(--muted); font-size: 13px; }
   .ok { color: var(--ok); font-weight: 700; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
-  fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 14px; background: var(--panel); min-width: 0; }
-  legend { font-family: var(--display); font-weight: 700; font-size: 17px; padding: 0 6px; }
-  .row { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 8px 10px; margin-top: 8px; }
-  .row label { font-size: 13px; color: var(--muted); letter-spacing: 0.01em; }
-  .row .val { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); justify-self: end; }
-  .row.three { grid-template-columns: 112px minmax(0, 1fr) 52px; }
-  input[type=text], select, textarea { font: inherit; width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 7px 9px; }
-  input[type=range] { width: 100%; accent-color: var(--accent); }
-  input[type=color] { width: 52px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 2px; }
-  .line { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; margin-top: 8px; }
-  .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .sw { width: 30px; height: 30px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
+  .frame { position: relative; width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; background: #111; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.18); touch-action: none; user-select: none; }
+  .frame iframe { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; border: 0; transform-origin: 0 0; background: #EAE3D2; pointer-events: none; }
+  .overlay { position: absolute; inset: 0; }
+  .box { position: absolute; border: 2px dashed rgba(30,136,229,0); border-radius: 6px; cursor: grab; }
+  .box:hover, .box.sel { border-color: var(--sel); }
+  .box.sel { box-shadow: 0 0 0 2px rgba(30,136,229,0.25); }
+  .box .tag { position: absolute; left: 0; top: -22px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: var(--sel); padding: 2px 7px; border-radius: 6px; opacity: 0; }
+  .box:hover .tag, .box.sel .tag { opacity: 1; }
+  .box .h { position: absolute; right: -9px; bottom: -9px; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--sel); cursor: nwse-resize; opacity: 0; }
+  .box.sel .h, .box:hover .h { opacity: 1; }
+  .box.dragging { cursor: grabbing; }
+  .pop { position: absolute; z-index: 4; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); width: min(420px, 92%); }
+  .pop textarea { width: 100%; min-height: 86px; font: 700 18px/1.3 var(--display); border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); color: var(--fg); resize: vertical; }
+  .pop .row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+  .pop .hint { flex: 1; }
+  .strip { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 12px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .strip label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .strip select, .strip input[type=text] { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 6px 8px; }
+  .swatches { display: flex; gap: 6px; align-items: center; }
+  .sw { width: 28px; height: 28px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; padding: 0; }
   .sw.on { border-color: var(--fg); }
-  textarea { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 92px; resize: vertical; }
-  .note { font-size: 13px; color: var(--muted); margin-top: 6px; }
-  details { margin-top: 10px; }
+  input[type=color] { width: 40px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 1px; }
+  details { margin-top: 6px; }
   summary { cursor: pointer; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 8px; }
+  fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; background: var(--panel); min-width: 0; }
+  legend { font-family: var(--display); font-weight: 700; font-size: 16px; padding: 0 6px; }
+  .r { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px 10px; align-items: center; margin-top: 6px; }
+  .r label { font-size: 13px; color: var(--muted); }
+  .r input[type=text], .r select, .r textarea { font: inherit; width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 6px 8px; }
+  textarea.settings { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 80px; width: 100%; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
-
+</head>
+<body>
 <header>
   <h1>Thumbnail Editor <small>Boring Business</small></h1>
-  <div class="video" id="videoName">No video loaded. Paste the settings from the review sheet below.</div>
+  <div class="video" id="videoName">No video loaded. Paste the settings from the review sheet at the bottom.</div>
 </header>
 
-<div class="frame" id="frame"><iframe id="preview" title="Thumbnail preview" src="about:blank"></iframe></div>
-
-<div class="bar">
+<div class="toolbar">
   <button class="primary" id="copyBtn" type="button">Copy settings</button>
+  <button id="undoBtn" type="button" disabled>Undo</button>
   <button id="resetBtn" type="button">Back to original</button>
-  <span class="hint" id="hint">Adjust, then copy the settings and paste them into the "Thumbnail settings" cell of this video's row on the review sheet. The system re-renders from them.</span>
+  <span class="sp"></span>
+  <span class="hint" id="hint">Drag the face, the words or the logo. Pull the corner dot to resize. Double-click the words to edit them. Then copy the settings into the sheet.</span>
 </div>
 
-<div class="grid">
-  <fieldset>
-    <legend>Words</legend>
-    <div class="line"><select id="l1s"><option value="">auto</option><option value="[w]">white block</option><option value="[b]">black block</option><option value="[t]">tint block</option><option value="[p]">plain</option><option value="*">accent block</option></select><input type="text" id="l1" placeholder="Line one"></div>
-    <div class="line"><select id="l2s"><option value="">auto</option><option value="[w]">white block</option><option value="[b]">black block</option><option value="[t]">tint block</option><option value="[p]">plain</option><option value="*">accent block</option></select><input type="text" id="l2" placeholder="Line two"></div>
-    <div class="line"><select id="l3s"><option value="">auto</option><option value="[w]">white block</option><option value="[b]">black block</option><option value="[t]">tint block</option><option value="[p]">plain</option><option value="*">accent block</option></select><input type="text" id="l3" placeholder="Line three (optional)"></div>
-    <div class="row three"><label for="headsize">Text size</label><input type="range" id="headsize" min="0" max="170" step="2" value="0"><span class="val" id="headsizeV">auto</span></div>
-    <div class="row"><label for="start">First block</label><select id="start"><option value="white">white</option><option value="black">black</option></select></div>
-    <div class="row"><label for="tilt">Tilt second row</label><select id="tilt"><option value="1">yes</option><option value="0">no</option></select></div>
-    <div class="note">Three to five words in total reads best. "||" splits a line into two blocks on one row.</div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Colours</legend>
-    <div class="row"><label for="topic">Lane</label><select id="topic">
-      <option value="money">purple (money, default)</option><option value="claude">orange (Claude)</option><option value="openai">mint (OpenAI)</option>
-      <option value="gemini">yellow (Gemini, SEO)</option><option value="meta">sky (dev, web)</option><option value="marketing">pink (marketing)</option>
-      <option value="apple">grey (Apple, productivity)</option><option value="business">beige (business)</option></select></div>
-    <div class="row three"><label for="field">Background</label><input type="text" id="field" placeholder="lane colour (leave blank)"><input type="color" id="fieldPick" value="#C9B9F7"></div>
-    <div class="swatches" id="swatches"></div>
-    <div class="row three"><label for="accent">Accent</label><input type="text" id="accent" placeholder="template accent (leave blank)"><input type="color" id="accentPick" value="#E4572E"></div>
-    <div class="note">Blank keeps the lane's own colour. Type a hex value or use the picker; the swatches are the approved lane palette.</div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Face</legend>
-    <div class="row"><label for="face">Expression</label><select id="face"></select></div>
-    <div class="row three"><label for="faceh">Size</label><input type="range" id="faceh" min="560" max="1040" step="10" value="880"><span class="val" id="facehV">880</span></div>
-    <div class="row three"><label for="facex">Left / right</label><input type="range" id="facex" min="-260" max="160" step="5" value="0"><span class="val" id="facexV">0</span></div>
-    <div class="row three"><label for="facetop">Up / down</label><input type="range" id="facetop" min="-120" max="220" step="4" value="24"><span class="val" id="facetopV">24</span></div>
-    <div class="note">The head must stay inside the frame. The system checks this when it renders and tries another expression if it doesn't fit.</div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Logo and layout</legend>
-    <div class="row"><label for="layout">Layout</label><select id="layout">
-      <option value="classic">classic</option><option value="tray">tray (several logos)</option><option value="vs">vs (two sides)</option><option value="launch">launch card</option>
-      <option value="badge">badge (big number)</option><option value="pair">pair (not this / this)</option><option value="notify">notification</option><option value="tier">tier rows</option><option value="laptop">laptop</option></select></div>
-    <div class="row"><label for="logo">Logo</label><select id="logo"></select></div>
-    <div class="row"><label for="name">Chip text</label><input type="text" id="name" placeholder="Product name"></div>
-    <div class="row three"><label for="logoscale">Logo size</label><input type="range" id="logoscale" min="0.6" max="1.8" step="0.05" value="1"><span class="val" id="logoscaleV">1.00</span></div>
-    <details><summary>Layout extras</summary>
-      <div class="row"><label for="left">vs left</label><input type="text" id="left" placeholder="claude@Claude or just a word"></div>
-      <div class="row"><label for="right">vs right</label><input type="text" id="right" placeholder="openai@ChatGPT"></div>
-      <div class="row"><label for="icons">Tray icons</label><input type="text" id="icons" placeholder="claude@Claude, canva@Canva, ..."></div>
-      <div class="row"><label for="tag">Launch tag</label><input type="text" id="tag" placeholder="Out now"></div>
-      <div class="row"><label for="num">Badge number</label><input type="text" id="num" placeholder="5"></div>
-      <div class="row"><label for="numlabel">Badge word</label><input type="text" id="numlabel" placeholder="ways"></div>
-    </details>
-  </fieldset>
-
-  <fieldset style="grid-column: 1 / -1">
-    <legend>Settings</legend>
-    <textarea id="settings" spellcheck="false" aria-label="Thumbnail settings JSON"></textarea>
-    <div class="bar" style="margin: 10px 0 0"><button id="loadBtn" type="button">Load from pasted settings</button><span class="hint">Paste a row's "Thumbnail settings" cell here if the page opened without a video.</span></div>
-  </fieldset>
+<div class="frame" id="frame">
+  <iframe id="preview" title="Thumbnail preview" src="about:blank"></iframe>
+  <div class="overlay" id="overlay">
+    <div class="box" data-kind="face"><span class="tag">Face</span><span class="h"></span></div>
+    <div class="box" data-kind="head"><span class="tag">Words</span><span class="h"></span></div>
+    <div class="box" data-kind="chip"><span class="tag">Logo</span><span class="h"></span></div>
+  </div>
+  <div class="pop" id="pop" hidden>
+    <textarea id="popText" aria-label="Headline lines, one per row" spellcheck="false"></textarea>
+    <div class="row"><span class="hint">One line per row, up to three. Start a line with [w] white, [b] black, [t] tint, [p] plain, or * for the accent block.</span><button class="primary" id="popOk" type="button">Done</button></div>
+  </div>
 </div>
+
+<div class="strip">
+  <label>Colour <select id="topic">
+    <option value="money">purple</option><option value="claude">orange</option><option value="openai">mint</option><option value="gemini">yellow</option>
+    <option value="meta">sky</option><option value="marketing">pink</option><option value="apple">grey</option><option value="business">beige</option></select></label>
+  <span class="swatches" id="swatches"></span>
+  <label>Custom <input type="color" id="fieldPick" value="#C9B9F7" aria-label="Custom background colour"><button id="fieldClear" type="button" title="Back to the lane colour">×</button></label>
+  <label>Face <select id="face"></select></label>
+  <label>Logo <select id="logo"></select></label>
+  <label>Chip text <input type="text" id="name" placeholder="Product" size="12"></label>
+  <label>Layout <select id="layout">
+    <option value="classic">classic</option><option value="tray">tray</option><option value="vs">vs</option><option value="launch">launch</option>
+    <option value="badge">badge</option><option value="pair">pair</option><option value="notify">notify</option><option value="tier">tier</option></select></label>
+  <label>First block <select id="start"><option value="white">white</option><option value="black">black</option></select></label>
+  <label>Tilt <select id="tilt"><option value="1">yes</option><option value="0">no</option></select></label>
+</div>
+
+<details>
+  <summary>More: accent colour, layout extras, exact numbers, settings</summary>
+  <div class="grid">
+    <fieldset><legend>Exact numbers</legend>
+      <div class="r"><label for="headsize">Text size px</label><input type="text" id="headsize" inputmode="numeric" placeholder="auto"></div>
+      <div class="r"><label for="faceh">Face height px</label><input type="text" id="faceh" inputmode="numeric"></div>
+      <div class="r"><label for="facex">Face left/right</label><input type="text" id="facex" inputmode="numeric"></div>
+      <div class="r"><label for="facetop">Face up/down</label><input type="text" id="facetop" inputmode="numeric"></div>
+      <div class="r"><label for="headx">Words left/right</label><input type="text" id="headx" inputmode="numeric"></div>
+      <div class="r"><label for="heady">Words up/down</label><input type="text" id="heady" inputmode="numeric"></div>
+      <div class="r"><label for="chipx">Logo left/right</label><input type="text" id="chipx" inputmode="numeric"></div>
+      <div class="r"><label for="chipy">Logo up/down</label><input type="text" id="chipy" inputmode="numeric"></div>
+      <div class="r"><label for="logoscale">Logo scale</label><input type="text" id="logoscale" inputmode="decimal"></div>
+      <div class="r"><label for="accent">Accent colour</label><input type="text" id="accent" placeholder="template accent"></div>
+    </fieldset>
+    <fieldset><legend>Layout extras</legend>
+      <div class="r"><label for="left">vs left</label><input type="text" id="left" placeholder="claude@Claude or a word"></div>
+      <div class="r"><label for="right">vs right</label><input type="text" id="right" placeholder="openai@ChatGPT"></div>
+      <div class="r"><label for="icons">Tray icons</label><input type="text" id="icons" placeholder="claude@Claude, canva@Canva"></div>
+      <div class="r"><label for="tag">Launch tag</label><input type="text" id="tag" placeholder="Out now"></div>
+      <div class="r"><label for="num">Badge number</label><input type="text" id="num" placeholder="5"></div>
+      <div class="r"><label for="numlabel">Badge word</label><input type="text" id="numlabel" placeholder="ways"></div>
+    </fieldset>
+    <fieldset style="grid-column: 1 / -1"><legend>Settings</legend>
+      <textarea class="settings" id="settings" spellcheck="false" aria-label="Thumbnail settings JSON"></textarea>
+      <div class="toolbar" style="margin-top: 8px"><button id="loadBtn" type="button">Load from pasted settings</button><span class="hint">Paste a row's "Thumbnail settings" cell here if the page opened without a video.</span></div>
+    </fieldset>
+  </div>
+</details>
 
 <script>
 (function () {
@@ -125,106 +141,193 @@
   const FACES = ["brow-raised", "head-tilt", "knowing-smile", "looking-to-headline", "mid-word", "neutral", "slight-smile"];
   const LANES = { money: "#C9B9F7", claude: "#F6DCCF", openai: "#D5EFE0", gemini: "#F7E9B5", meta: "#D6E6F7", marketing: "#F7D9E3", apple: "#E6E6E6", business: "#EDE6D6" };
   const DEFAULTS = { layout: "classic", topic: "money", lines: ["", ""], face: "neutral", faceh: 880, facex: 0, facetop: 24, start: "white", tilt: 1,
-                     field: "", accent: "", headsize: 0, logoscale: 1, logo: "", name: "", extra: {} };
-  let original = null, slug = "", title = "";
+                     field: "", accent: "", headsize: 0, logoscale: 1, headx: 0, heady: 0, chipx: 0, chipy: 0, logo: "", name: "", extra: {} };
   const $ = (id) => document.getElementById(id);
+  let P = Object.assign({}, DEFAULTS), original = null, slug = "", title = "", history = [], scale = 1, sel = null, measured = {};
 
-  // selects
-  const logoSel = $("logo"); logoSel.appendChild(new Option("none", ""));
-  LOGOS.forEach((l) => logoSel.appendChild(new Option(l, l)));
+  const logoSel = $("logo"); logoSel.appendChild(new Option("none", "")); LOGOS.forEach((l) => logoSel.appendChild(new Option(l, l)));
   const faceSel = $("face"); FACES.forEach((f) => faceSel.appendChild(new Option(f.replace(/-/g, " "), f))); faceSel.appendChild(new Option("none", "none"));
-  const sw = $("swatches");
-  Object.entries(LANES).forEach(([k, v]) => { const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.style.background = v; b.title = k + " " + v;
-    b.setAttribute("aria-label", k + " lane colour"); b.addEventListener("click", () => { $("field").value = v; $("fieldPick").value = v; update(); }); sw.appendChild(b); });
+  Object.entries(LANES).forEach(([k, v]) => { const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.style.background = v; b.title = k;
+    b.setAttribute("aria-label", k + " lane colour"); b.addEventListener("click", () => { push(); P.topic = k; P.field = ""; $("topic").value = k; render(true); }); $("swatches").appendChild(b); });
 
-  function splitLine(raw) {
-    const m = /^(\[[wbtp]\]|\*)\s*(.*)$/.exec(raw || "");
-    return m ? [m[1], m[2]] : ["", raw || ""];
-  }
-  function fill(prm) {
-    const p = Object.assign({}, DEFAULTS, prm || {});
-    const lines = (p.lines || []).slice(0, 3);
-    for (let i = 0; i < 3; i++) { const [tok, txt] = splitLine(lines[i] || ""); $("l" + (i + 1) + "s").value = tok; $("l" + (i + 1)).value = txt; }
-    $("headsize").value = p.headsize || 0; $("start").value = p.start || "white"; $("tilt").value = String(p.tilt == null ? 1 : p.tilt);
-    $("topic").value = LANES[p.topic] ? p.topic : "money"; $("field").value = p.field || ""; $("accent").value = p.accent || "";
-    $("fieldPick").value = p.field || LANES[$("topic").value]; $("accentPick").value = p.accent || "#E4572E";
-    $("face").value = p.face || "neutral"; $("faceh").value = p.faceh || 880; $("facex").value = p.facex || 0; $("facetop").value = p.facetop == null ? 24 : p.facetop;
-    $("layout").value = p.layout || "classic"; $("logo").value = LOGOS.includes(p.logo) ? p.logo : ""; $("name").value = p.name || ""; $("logoscale").value = p.logoscale || 1;
-    const ex = p.extra || {};
-    $("left").value = ex.left || ""; $("right").value = ex.right || ""; $("icons").value = (ex.icon || []).join(", "); $("tag").value = ex.tag || ""; $("num").value = ex.num || ""; $("numlabel").value = ex.numlabel || "";
-    update();
-  }
-  function read() {
-    const lines = [];
-    for (let i = 1; i <= 3; i++) { const t = $("l" + i).value.trim(); if (t) { const tok = $("l" + i + "s").value; lines.push(tok === "*" ? "*" + t : tok + t); } }
-    const ex = {};
-    if ($("left").value.trim()) ex.left = $("left").value.trim();
-    if ($("right").value.trim()) ex.right = $("right").value.trim();
-    const icons = $("icons").value.split(",").map((s) => s.trim()).filter(Boolean); if (icons.length) ex.icon = icons;
-    if ($("tag").value.trim()) ex.tag = $("tag").value.trim();
-    if ($("num").value.trim()) ex.num = $("num").value.trim();
-    if ($("numlabel").value.trim()) ex.numlabel = $("numlabel").value.trim();
-    return { layout: $("layout").value, topic: $("topic").value, lines, face: $("face").value, faceh: +$("faceh").value, facex: +$("facex").value, facetop: +$("facetop").value,
-             start: $("start").value, tilt: +$("tilt").value, field: $("field").value.trim(), accent: $("accent").value.trim(), headsize: +$("headsize").value,
-             logoscale: Math.round(+$("logoscale").value * 100) / 100, logo: $("logo").value, name: $("name").value.trim(), extra: ex };
-  }
-  function item(v) { // "claude@Claude" -> logos/claude-ink.svg@Claude ; plain word stays
-    if (!v) return v; const at = v.indexOf("@"); const key = at >= 0 ? v.slice(0, at) : v; const label = at >= 0 ? v.slice(at + 1) : "";
-    return LOGOS.includes(key) ? "logos/" + key + "-ink.svg" + (label ? "@" + label : "@" + key) : v;
-  }
+  // ---------------------------------------------------------------- params <-> preview
+  function item(v) { if (!v) return v; const at = v.indexOf("@"); const key = at >= 0 ? v.slice(0, at) : v; const label = at >= 0 ? v.slice(at + 1) : "";
+    return LOGOS.includes(key) ? "logos/" + key + "-ink.svg@" + (label || key) : v; }
   function query(p) {
     const q = new URLSearchParams();
-    q.set("layout", p.layout); q.set("topic", p.topic); p.lines.forEach((l) => q.append("line", l));
-    q.set("start", p.start); q.set("tilt", String(p.tilt));
+    q.set("layout", p.layout || "classic"); q.set("topic", p.topic || "money"); (p.lines || []).filter(Boolean).forEach((l) => q.append("line", l));
+    q.set("start", p.start || "white"); q.set("tilt", String(p.tilt == null ? 1 : p.tilt));
     if (p.field) q.set("field", p.field); if (p.accent) q.set("accent", p.accent);
     if (p.headsize) q.set("headsize", String(p.headsize)); if (p.logoscale && p.logoscale !== 1) q.set("logoscale", String(p.logoscale));
-    q.set("face", p.face === "none" ? "none" : "faces/" + p.face + ".png"); q.set("faceh", String(p.faceh)); q.set("facex", String(p.facex)); q.set("facetop", String(p.facetop));
+    ["headx", "heady", "chipx", "chipy"].forEach((k) => { if (p[k]) q.set(k, String(p[k])); });
+    q.set("face", p.face === "none" ? "none" : "faces/" + (p.face || "neutral") + ".png"); q.set("faceh", String(p.faceh || 880)); q.set("facex", String(p.facex || 0)); q.set("facetop", String(p.facetop == null ? 24 : p.facetop));
     if (p.logo) { q.set("logo", "logos/" + p.logo + "-ink.svg"); q.set("name", p.name || p.logo); }
     const ex = p.extra || {};
-    if (ex.left) q.set("left", item(ex.left)); if (ex.right) q.set("right", item(ex.right));
-    (ex.icon || []).forEach((i) => q.append("icon", item(i)));
+    if (ex.left) q.set("left", item(ex.left)); if (ex.right) q.set("right", item(ex.right)); (ex.icon || []).forEach((i) => q.append("icon", item(i)));
     if (ex.tag) q.set("tag", ex.tag); if (ex.num) q.set("num", ex.num); if (ex.numlabel) q.set("numlabel", ex.numlabel);
     q.set("grid", "1");
     return "thumbnail.html?" + q.toString();
   }
-  let timer = null;
-  function update() {
-    const p = read();
-    $("headsizeV").textContent = p.headsize ? p.headsize + "px" : "auto"; $("facehV").textContent = p.faceh; $("facexV").textContent = p.facex; $("facetopV").textContent = p.facetop; $("logoscaleV").textContent = p.logoscale.toFixed(2);
-    $("settings").value = JSON.stringify(Object.assign({ slug, title }, p));
-    clearTimeout(timer); timer = setTimeout(() => { $("preview").src = query(p); }, 120);
+  function clean(p) { const o = Object.assign({}, p); o.lines = (o.lines || []).filter(Boolean); o.logoscale = Math.round((o.logoscale || 1) * 100) / 100;
+    ["faceh", "facex", "facetop", "headx", "heady", "chipx", "chipy", "headsize"].forEach((k) => { o[k] = Math.round(o[k] || 0); }); if (!o.faceh) o.faceh = 880; return o; }
+  function syncControls() {
+    $("topic").value = LANES[P.topic] ? P.topic : "money"; $("fieldPick").value = P.field || LANES[$("topic").value];
+    document.querySelectorAll(".sw").forEach((b) => b.classList.toggle("on", !P.field && b.title === $("topic").value));
+    $("face").value = P.face || "neutral"; $("logo").value = LOGOS.includes(P.logo) ? P.logo : ""; $("name").value = P.name || "";
+    $("layout").value = P.layout || "classic"; $("start").value = P.start || "white"; $("tilt").value = String(P.tilt == null ? 1 : P.tilt);
+    $("headsize").value = P.headsize ? P.headsize : ""; ["faceh", "facex", "facetop", "headx", "heady", "chipx", "chipy"].forEach((k) => { $(k).value = Math.round(P[k] || 0); });
+    $("logoscale").value = (P.logoscale || 1).toFixed(2); $("accent").value = P.accent || "";
+    const ex = P.extra || {}; $("left").value = ex.left || ""; $("right").value = ex.right || ""; $("icons").value = (ex.icon || []).join(", "); $("tag").value = ex.tag || ""; $("num").value = ex.num || ""; $("numlabel").value = ex.numlabel || "";
+    $("settings").value = JSON.stringify(Object.assign({ slug, title }, clean(P)));
+    $("undoBtn").disabled = history.length === 0;
   }
-  function scale() { const w = $("frame").clientWidth; $("preview").style.transform = "scale(" + (w / 1280) + ")"; }
-  window.addEventListener("resize", scale); scale();
+  let renderTimer = null;
+  function render(now) {
+    syncControls();
+    clearTimeout(renderTimer);
+    const go = () => { $("preview").src = query(P); };
+    now ? go() : (renderTimer = setTimeout(go, 60));
+  }
+  function push() { history.push(JSON.stringify(P)); if (history.length > 60) history.shift(); $("undoBtn").disabled = false; }
+  function fit() { scale = $("frame").clientWidth / 1280; $("preview").style.transform = "scale(" + scale + ")"; place(); }
+  window.addEventListener("resize", fit);
 
-  document.querySelectorAll("input, select").forEach((el) => { el.addEventListener("input", update); el.addEventListener("change", update); });
-  $("fieldPick").addEventListener("input", () => { $("field").value = $("fieldPick").value; update(); });
-  $("accentPick").addEventListener("input", () => { $("accent").value = $("accentPick").value; update(); });
+  // ---------------------------------------------------------------- measure the template's elements and place the handles
+  function doc() { try { return $("preview").contentDocument; } catch (e) { return null; } }
+  function measure() {
+    const d = doc(); if (!d) return;
+    const pick = (selector) => { const el = d.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return null; return { el, x: r.left, y: r.top, w: r.width, h: r.height }; };
+    measured = { face: P.face === "none" ? null : pick(".face"), head: pick(".headline"), chip: pick(".chip") };
+    place();
+  }
+  function place() {
+    document.querySelectorAll(".box").forEach((b) => {
+      const m = measured[b.dataset.kind];
+      if (!m) { b.hidden = true; return; }
+      b.hidden = false;
+      const pad = 6;
+      b.style.left = (m.x - pad) * scale + "px"; b.style.top = (m.y - pad) * scale + "px"; b.style.width = (m.w + pad * 2) * scale + "px"; b.style.height = (m.h + pad * 2) * scale + "px";
+      b.classList.toggle("sel", sel === b.dataset.kind);
+    });
+  }
+  $("preview").addEventListener("load", () => { setTimeout(measure, 80); setTimeout(measure, 400); });
+
+  // ---------------------------------------------------------------- drag to move, corner to resize (live inside the iframe, then re-render)
+  let drag = null;
+  function getBase(el) { if (el.dataset.baseTransform != null) return el.dataset.baseTransform; const d = doc(); const t = d && d.defaultView.getComputedStyle(el).transform; const base = (t && t !== "none") ? t : ""; el.dataset.baseTransform = base; return base; }
+  function startDrag(e, kind, resize) {
+    const m = measured[kind]; if (!m) return;
+    e.preventDefault();
+    sel = kind; place();
+    drag = { kind, resize, x0: e.clientX, y0: e.clientY, m, k: 1, dx: 0, dy: 0, base: getBase(m.el) };
+    e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.classList.add("dragging");
+  }
+  function moveDrag(e) {
+    if (!drag) return;
+    const dx = (e.clientX - drag.x0) / scale, dy = (e.clientY - drag.y0) / scale;
+    const el = drag.m.el;
+    if (drag.resize) {
+      const k = Math.max(0.3, Math.min(3, (drag.m.w + dx) / drag.m.w));
+      drag.k = k;
+      el.style.transformOrigin = "left top";
+      el.style.transform = drag.base + " scale(" + k + ")";
+    } else {
+      drag.dx = dx; drag.dy = dy;
+      el.style.transform = drag.base + " translate(" + dx + "px, " + dy + "px)";
+    }
+    const b = document.querySelector('.box[data-kind="' + drag.kind + '"]');
+    if (drag.resize) { b.style.width = (drag.m.w * drag.k + 12) * scale + "px"; b.style.height = (drag.m.h * drag.k + 12) * scale + "px"; }
+    else { b.style.left = (drag.m.x - 6 + drag.dx) * scale + "px"; b.style.top = (drag.m.y - 6 + drag.dy) * scale + "px"; }
+  }
+  function endDrag() {
+    if (!drag) return;
+    const { kind, resize, k, dx, dy, m } = drag;
+    document.querySelectorAll(".box").forEach((b) => b.classList.remove("dragging"));
+    const moved = resize ? Math.abs(k - 1) > 0.01 : (Math.abs(dx) > 1 || Math.abs(dy) > 1);
+    drag = null;
+    if (!moved) { render(true); return; }
+    push();
+    if (kind === "face") {
+      if (resize) { P.faceh = Math.round((P.faceh || 880) * k); }
+      else { P.facex = Math.round((P.facex || 0) + dx); P.facetop = Math.round((P.facetop == null ? 24 : P.facetop) + dy); }
+    } else if (kind === "head") {
+      if (resize) { const d = doc(); const cur = d ? parseFloat(d.defaultView.getComputedStyle(m.el).fontSize) || 120 : 120; P.headsize = Math.max(40, Math.min(220, Math.round(cur * k))); }
+      else { P.headx = Math.round((P.headx || 0) + dx); P.heady = Math.round((P.heady || 0) + dy); }
+    } else if (kind === "chip") {
+      if (resize) { P.logoscale = Math.max(0.4, Math.min(2.5, Math.round((P.logoscale || 1) * k * 100) / 100)); }
+      else { P.chipx = Math.round((P.chipx || 0) + dx); P.chipy = Math.round((P.chipy || 0) + dy); }
+    }
+    render(true);
+  }
+  document.querySelectorAll(".box").forEach((b) => {
+    const kind = b.dataset.kind;
+    b.addEventListener("pointerdown", (e) => { if (e.target.classList.contains("h")) return; startDrag(e, kind, false); });
+    b.querySelector(".h").addEventListener("pointerdown", (e) => { e.stopPropagation(); startDrag(e, kind, true); });
+    b.addEventListener("pointermove", moveDrag);
+    b.addEventListener("pointerup", endDrag);
+    b.addEventListener("pointercancel", endDrag);
+    b.addEventListener("dblclick", () => { if (kind === "head") openPop(); if (kind === "chip") { $("name").focus(); $("name").select(); } if (kind === "face") $("face").focus(); });
+  });
+  $("overlay").addEventListener("pointerdown", (e) => { if (e.target === $("overlay")) { sel = null; place(); } });
+  document.addEventListener("keydown", (e) => {
+    if (!sel || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+    const step = e.shiftKey ? 20 : 4; let d = null;
+    if (e.key === "ArrowLeft") d = [-step, 0]; if (e.key === "ArrowRight") d = [step, 0]; if (e.key === "ArrowUp") d = [0, -step]; if (e.key === "ArrowDown") d = [0, step];
+    if (!d) return; e.preventDefault(); push();
+    if (sel === "face") { P.facex = (P.facex || 0) + d[0]; P.facetop = (P.facetop == null ? 24 : P.facetop) + d[1]; }
+    if (sel === "head") { P.headx = (P.headx || 0) + d[0]; P.heady = (P.heady || 0) + d[1]; }
+    if (sel === "chip") { P.chipx = (P.chipx || 0) + d[0]; P.chipy = (P.chipy || 0) + d[1]; }
+    render(true);
+  });
+
+  // ---------------------------------------------------------------- in-place text editing
+  function openPop() {
+    const m = measured.head; const pop = $("pop");
+    pop.hidden = false;
+    pop.style.left = Math.max(8, Math.min(($("frame").clientWidth - pop.offsetWidth - 8), (m ? m.x * scale : 40))) + "px";
+    pop.style.top = Math.max(8, ((m ? (m.y + m.h) * scale : 200) + 10)) + "px";
+    $("popText").value = (P.lines || []).filter(Boolean).join("\n");
+    $("popText").focus();
+  }
+  function closePop(apply) {
+    const pop = $("pop"); if (pop.hidden) return;
+    if (apply) { const lines = $("popText").value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 3); if (JSON.stringify(lines) !== JSON.stringify((P.lines || []).filter(Boolean))) { push(); P.lines = lines; } }
+    pop.hidden = true; render(true);
+  }
+  $("popOk").addEventListener("click", () => closePop(true));
+  $("popText").addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(false); if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) closePop(true); });
+  document.addEventListener("pointerdown", (e) => { if (!$("pop").hidden && !$("pop").contains(e.target)) closePop(true); }, true);
+
+  // ---------------------------------------------------------------- strip and exact controls
+  const strip = { topic: (v) => { P.topic = v; P.field = ""; }, face: (v) => { P.face = v; }, logo: (v) => { P.logo = v; if (v && !P.name) P.name = v.charAt(0).toUpperCase() + v.slice(1); },
+                  name: (v) => { P.name = v; }, layout: (v) => { P.layout = v; }, start: (v) => { P.start = v; }, tilt: (v) => { P.tilt = +v; }, accent: (v) => { P.accent = v.trim(); },
+                  headsize: (v) => { P.headsize = +v || 0; }, faceh: (v) => { P.faceh = +v || 880; }, facex: (v) => { P.facex = +v || 0; }, facetop: (v) => { P.facetop = +v || 0; },
+                  headx: (v) => { P.headx = +v || 0; }, heady: (v) => { P.heady = +v || 0; }, chipx: (v) => { P.chipx = +v || 0; }, chipy: (v) => { P.chipy = +v || 0; }, logoscale: (v) => { P.logoscale = +v || 1; },
+                  left: (v) => { P.extra = P.extra || {}; P.extra.left = v.trim(); }, right: (v) => { P.extra = P.extra || {}; P.extra.right = v.trim(); },
+                  icons: (v) => { P.extra = P.extra || {}; P.extra.icon = v.split(",").map((s) => s.trim()).filter(Boolean); }, tag: (v) => { P.extra = P.extra || {}; P.extra.tag = v.trim(); },
+                  num: (v) => { P.extra = P.extra || {}; P.extra.num = v.trim(); }, numlabel: (v) => { P.extra = P.extra || {}; P.extra.numlabel = v.trim(); } };
+  Object.keys(strip).forEach((id) => { const el = $(id); el.addEventListener("change", () => { push(); strip[id](el.value); render(true); }); });
+  $("fieldPick").addEventListener("input", () => { P.field = $("fieldPick").value; render(); });
+  $("fieldPick").addEventListener("change", () => { push(); P.field = $("fieldPick").value; render(true); });
+  $("fieldClear").addEventListener("click", () => { push(); P.field = ""; render(true); });
+  $("undoBtn").addEventListener("click", () => { if (!history.length) return; P = JSON.parse(history.pop()); render(true); });
+  $("resetBtn").addEventListener("click", () => { if (original) { push(); P = JSON.parse(JSON.stringify(original)); render(true); } });
   $("copyBtn").addEventListener("click", () => {
     const text = $("settings").value;
-    const done = () => { $("hint").innerHTML = '<span class="ok">Copied.</span> Paste it into the "Thumbnail settings" cell of this video\'s row on the review sheet.'; };
-    try { navigator.clipboard.writeText(text).then(done).catch(() => { $("settings").select(); $("hint").textContent = "Select the settings box and copy it yourself (Cmd+C)."; }); }
-    catch (e) { $("settings").select(); $("hint").textContent = "Select the settings box and copy it yourself (Cmd+C)."; }
+    const done = () => { $("hint").innerHTML = '<span class="ok">Copied.</span> Paste it into the "Thumbnail settings" cell of this video\'s row on the review sheet. The system re-renders from it.'; };
+    const manual = () => { $("settings").closest("details").open = true; $("settings").select(); $("hint").textContent = "Select the settings box and copy it yourself (Cmd+C)."; };
+    try { navigator.clipboard.writeText(text).then(done).catch(manual); } catch (e) { manual(); }
   });
-  $("resetBtn").addEventListener("click", () => { if (original) fill(original); });
-  $("loadBtn").addEventListener("click", () => {
-    try { const p = JSON.parse($("settings").value); slug = p.slug || slug; title = p.title || title; delete p.slug; delete p.title; original = JSON.parse(JSON.stringify(p));
-          $("videoName").textContent = title ? title : (slug || "pasted settings"); fill(p); }
-    catch (e) { $("hint").textContent = "Those settings are not valid JSON; copy the whole cell from the sheet."; }
-  });
-
-  // settings arrive in the link's anchor as url-safe base64 (the review sheet builds it); otherwise paste them
+  function load(p, label) { slug = p.slug || ""; title = p.title || ""; delete p.slug; delete p.title; P = Object.assign({}, DEFAULTS, p); original = JSON.parse(JSON.stringify(P)); history = []; $("videoName").textContent = title || slug || label; fit(); render(true); }
+  $("loadBtn").addEventListener("click", () => { try { load(JSON.parse($("settings").value), "pasted settings"); } catch (e) { $("hint").textContent = "Those settings are not valid JSON; copy the whole cell from the sheet."; } });
   function fromHash() {
-    const h = (location.hash || "").replace(/^#/, "");
-    if (!h) return false;
-    try {
-      const b = h.replace(/-/g, "+").replace(/_/g, "/"); const pad = b + "===".slice((b.length + 3) % 4);
-      const json = decodeURIComponent(escape(atob(pad)));
-      const p = JSON.parse(json); slug = p.slug || ""; title = p.title || ""; delete p.slug; delete p.title;
-      original = JSON.parse(JSON.stringify(p)); $("videoName").textContent = title || slug; fill(p); return true;
-    } catch (e) { return false; }
+    const h = (location.hash || "").replace(/^#/, ""); if (!h) return false;
+    try { const b = h.replace(/-/g, "+").replace(/_/g, "/"); const pad = b + "===".slice((b.length + 3) % 4); const p = JSON.parse(decodeURIComponent(escape(atob(pad)))); load(p, "from link"); return true; } catch (e) { return false; }
   }
-  if (!fromHash()) { original = Object.assign({}, DEFAULTS, { lines: ["[w]Claude", "[t]Dashboards", "[p]explained"], logo: LOGOS.includes("claude") ? "claude" : "", name: "Claude", topic: "claude" });
-                     $("videoName").textContent = "Example settings (no video loaded)"; fill(original); }
+  window.addEventListener("hashchange", fromHash);
+  if (!fromHash()) load({ layout: "classic", topic: "claude", lines: ["[w]Claude", "[t]Dashboards", "[p]explained"], logo: LOGOS.includes("claude") ? "claude" : "", name: "Claude" }, "Example (no video loaded)");
 })();
 </script>
+</body>
+</html>

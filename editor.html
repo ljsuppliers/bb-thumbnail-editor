@@ -410,28 +410,36 @@
   $("face_sel").addEventListener("change", () => { push(); P.face = $("face_sel").value; draw(); });
   $("undoBtn").addEventListener("click", () => { if (!history.length) return; P = JSON.parse(history.pop()); draw(); buildInspector(); });
   $("resetBtn").addEventListener("click", () => { if (original) { push(); P = JSON.parse(JSON.stringify(original)); draw(); buildInspector(); } });
+  // 28 Oct 2026 (Liam: the resize handle showed in a saved thumbnail): the picture is taken with every selection outline and handle
+  // stripped and empty text rows hidden, whatever is selected at the time
+  function exportStage() {
+    const stage = $("stage"); const prev = stage.style.transform; const wasSel = sel;
+    select(null); stage.style.transform = "none";
+    const hidden = [];
+    stage.querySelectorAll(".obj.sel").forEach((o) => o.classList.remove("sel"));
+    stage.querySelectorAll(".head .row").forEach((r) => { if (!r.textContent.trim()) { hidden.push(r); r.style.display = "none"; } });
+    const skip = (node) => !(node.classList && node.classList.contains("handle"));
+    return htmlToImage.toPng(stage, { width: 1280, height: 720, pixelRatio: 1, cacheBust: true, style: { transform: "none" }, filter: skip })
+      .finally(() => { hidden.forEach((r) => (r.style.display = "")); stage.style.transform = prev; if (wasSel) select(wasSel); });
+  }
   $("saveBtn").addEventListener("click", () => {
     if (!SAVE_URL) { $("hint").textContent = "Saving is not connected; use Copy settings and paste into the row."; return; }
     if (!slug) { $("hint").textContent = "No video loaded: open the editor from the row's edit link, or paste its settings and press Load."; return; }
     $("saveBtn").disabled = true; $("hint").textContent = "Saving…";
-    const stage = $("stage"); const prev = stage.style.transform; const wasSel = sel; select(null); stage.style.transform = "none";
     // the picture itself travels with the settings, so the row shows exactly what you see here (no render on the mini)
-    htmlToImage.toPng(stage, { width: 1280, height: 720, pixelRatio: 1, cacheBust: true, style: { transform: "none" } }).catch(() => "")
-      .then((png) => { stage.style.transform = prev; if (wasSel) select(wasSel); return JSON.stringify({ slug, settings: $("settings").value, png: png || "" }); })
+    exportStage().catch(() => "")
+      .then((png) => JSON.stringify({ slug, settings: $("settings").value, png: png || "" }))
       .then((payload) => fetch(SAVE_URL, { method: "POST", body: payload, headers: { "Content-Type": "text/plain;charset=utf-8" }, redirect: "follow" }))
       .then((r) => r.json().catch(() => ({ ok: r.ok })))
       .then((j) => { $("saveBtn").disabled = false; if (j && j.ok) { $("hint").innerHTML = '<span class="ok">Saved.</span> Tick Thumb OK on the row when you are happy with it.'; } else { $("hint").textContent = "The sheet did not accept it: " + ((j && j.error) || "unknown error") + ". Use Copy settings and paste instead."; } })
       .catch(() => { $("saveBtn").disabled = false; $("hint").textContent = "Could not reach the sheet. Use Copy settings and paste into the row."; });
   });
   $("downloadBtn").addEventListener("click", () => {
-    const stage = $("stage"); const prev = stage.style.transform; const wasSel = sel;
-    select(null); stage.style.transform = "none";
     $("hint").textContent = "Rendering the PNG…";
-    htmlToImage.toPng(stage, { width: 1280, height: 720, pixelRatio: 1, cacheBust: true, style: { transform: "none" } })
+    exportStage()
       .then((url) => { const a = document.createElement("a"); a.href = url; a.download = (slug || "thumbnail") + ".png"; document.body.appendChild(a); a.click(); a.remove();
                        $("hint").innerHTML = '<span class="ok">Downloaded.</span> Drop it into the video\'s Drive folder as thumbnail.png and the system uses it as the final thumbnail.'; })
-      .catch((e) => { $("hint").textContent = "Could not render the PNG: " + e; })
-      .finally(() => { stage.style.transform = prev; if (wasSel) select(wasSel); });
+      .catch((e) => { $("hint").textContent = "Could not render the PNG: " + e; });
   });
   $("copyBtn").addEventListener("click", () => {
     const text = $("settings").value;

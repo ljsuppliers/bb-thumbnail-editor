@@ -103,8 +103,8 @@
   const CLASSIC = "./?v=7";
   const LOGOS = ["anthropic", "apple", "canva", "claude", "deepseek", "github", "gmail", "google", "googlegemini", "lovable", "meta", "microsoft", "notion", "openai", "perplexity", "php", "quickbooks", "shopify", "slack", "stripe", "whatsapp", "x", "youtube"];
   const POSES = ["tablet", "two-cards", "cupped", "chin-fist", "framing", "pointing-left", "pointing-up", "laptop-chair", "keyboard", "thumbs-up", "phone", "arms-folded"];
-  const DEFAULTS = { layout: "studio", bg: "light", lines: ["Your headline", "for {serif:someone}", "{circle:2026} {box:Guide}"], pose: "cupped", faceside: "right", faceh: 740, facex: -150, facey: -10,
-                     headx: 52, heady: 40, headsize: 112, icons: [], hero: null, glow: "", manual: 1 };
+  const DEFAULTS = { layout: "studio", bg: "light", lines: ["AI Marketing", "for {serif:Beginners}", "{circle:2026} {box:Guide}"], pose: "cupped", faceside: "right", faceh: 740, facex: 0, facey: -10,
+                     headx: 52, heady: 40, headsize: 112, icons: [{ logo: "claude", x: 56, y: 500, s: 170, rot: -9 }, { logo: "canva", x: 236, y: 520, s: 170, rot: 7 }], hero: { logo: "openai", x: 760, y: 400, s: 250, rot: -8 }, glow: "", manual: 1 };
   const $ = (id) => document.getElementById(id);
   let P = JSON.parse(JSON.stringify(DEFAULTS)), original = null, slug = "", title = "", history = [], scale = 1, sel = null, selIdx = 0;
   const circleSvg = '<svg viewBox="0 0 100 60" preserveAspectRatio="none"><ellipse cx="50" cy="30" rx="47" ry="26" fill="none" stroke="#e5261f" stroke-width="6" stroke-linecap="round" stroke-dasharray="182 14" transform="rotate(-5 50 30)" vector-effect="non-scaling-stroke"/></svg>';
@@ -248,7 +248,7 @@
         if (kind === "head") { P.headsize = Math.max(40, Math.min(220, Math.round(s.headsize * k))); o.querySelectorAll(".line").forEach((l) => l.style.fontSize = P.headsize + "px"); }
         if (t) { t.s = Math.max(60, Math.min(600, Math.round(s.is * k))); o.style.width = o.style.height = t.s + "px"; }
       } else {
-        if (kind === "face") { const sign = P.faceside === "left" ? 1 : -1; P.facex = Math.round(s.facex + sign * dx); P.facey = Math.round(s.facey - dy); o.style[P.faceside === "left" ? "left" : "right"] = (-P.facex) + "px"; o.style.bottom = (-4 - P.facey) + "px"; }
+        if (kind === "face") { P.facex = Math.round(s.facex + (P.faceside === "left" ? -dx : dx)); P.facey = Math.round(s.facey + dy); o.style[P.faceside === "left" ? "left" : "right"] = (-P.facex) + "px"; o.style.bottom = (-4 - P.facey) + "px"; }
         if (kind === "head") { P.headx = Math.round(s.headx + dx); P.heady = Math.round(s.heady + dy); o.style.left = P.headx + "px"; o.style.top = P.heady + "px"; }
         if (t) { t.x = Math.round(s.ix + dx); t.y = Math.round(s.iy + dy); o.style.left = t.x + "px"; o.style.top = t.y + "px"; }
       }
@@ -264,7 +264,7 @@
     const step = e.shiftKey ? 20 : 4; let d = null;
     if (e.key === "ArrowLeft") d = [-step, 0]; if (e.key === "ArrowRight") d = [step, 0]; if (e.key === "ArrowUp") d = [0, -step]; if (e.key === "ArrowDown") d = [0, step];
     if (!d) return; e.preventDefault(); push();
-    if (sel === "face") { P.facex = (P.facex || 0) + (P.faceside === "left" ? d[0] : -d[0]); P.facey = (P.facey || 0) - d[1]; }
+    if (sel === "face") { P.facex = (P.facex || 0) + (P.faceside === "left" ? -d[0] : d[0]); P.facey = (P.facey || 0) + d[1]; }
     if (sel === "head") { P.headx = (P.headx == null ? 52 : P.headx) + d[0]; P.heady = (P.heady == null ? 40 : P.heady) + d[1]; }
     const t = target(sel, selIdx); if (t) { t.x += d[0]; t.y += d[1]; }
     draw();
@@ -320,7 +320,7 @@
     slug = p.slug || slug; title = p.title || title;
     P = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), p); delete P.slug; delete P.title;
     original = JSON.parse(JSON.stringify(P)); history = [];
-    $("videoName").textContent = (title || slug || "untitled") + (how ? "  (" + how + ")" : "");
+    $("videoName").textContent = (title || slug) ? (title || slug) + (how ? "  (" + how + ")" : "") : "Sample design. Open a video from its edit link on the review sheet to work on a real one.";
     draw(); fit();
   }
   function fromHash() {

@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio Thumbnail Editor</title>
+<!-- 28 Oct 2026: the Mikey No Code style editor (Liam: "I still think we need our thumbnail editor so I can adjust things slightly").
+     Same layout, fonts and proportions as the renderer (brand/boring-business/studio.html). Every object drags; the corner dot resizes.
+     Save posts {slug, settings, png} to the Worker, exactly like the classic editor. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800;900&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; font: 15px/1.4 Inter, -apple-system, system-ui, sans-serif; background: #f3f3f5; color: #141414; }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 14px 20px 6px; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 800; } header h1 small { font-weight: 500; color: #777; margin-left: 8px; }
+  .video { color: #555; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 20px; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #c8c8cc; background: #fff; cursor: pointer; }
+  button.primary { background: #141414; color: #fff; border-color: #141414; font-weight: 700; }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { color: #666; } .ok { color: #0a7d3b; font-weight: 700; } .sp { flex: 1; }
+  .wrap { position: relative; width: calc(100% - 40px); max-width: 1280px; aspect-ratio: 16 / 9; margin: 6px 20px; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,.18); touch-action: none; user-select: none; }
+  #stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden; font-family: Inter, Helvetica, Arial, sans-serif; }
+  #stage.light { background: radial-gradient(120% 90% at 30% 20%, #ffffff 0%, #f1f2f4 55%, #d9dbe0 100%); color: #111; }
+  #stage.dark { background: radial-gradient(110% 90% at 65% 45%, #2a2d33 0%, #15161a 60%, #0b0c0e 100%); color: #fff; }
+  #glow { position: absolute; width: 520px; height: 520px; border-radius: 50%; filter: blur(90px); opacity: .55; pointer-events: none; }
+  .obj { position: absolute; cursor: grab; }
+  .obj.dragging { cursor: grabbing; }
+  .obj.sel { outline: 3px dashed rgba(37,99,235,.9); outline-offset: 4px; }
+  .handle { position: absolute; right: -14px; bottom: -14px; width: 26px; height: 26px; border-radius: 50%; background: #2563eb; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.4); cursor: nwse-resize; display: none; }
+  .obj.sel .handle { display: block; }
+  #face { bottom: -4px; z-index: 2; }
+  #face img { display: block; height: 100%; filter: drop-shadow(0 18px 30px rgba(0,0,0,.35)); pointer-events: none; }
+  #head { left: 52px; top: 40px; width: 640px; z-index: 3; }
+  .line { display: block; font-weight: 900; font-size: 112px; line-height: 1.02; letter-spacing: -0.035em; white-space: nowrap; margin-bottom: 10px; }
+  .serif { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-weight: 400; letter-spacing: -0.01em; font-size: 1.1em; }
+  .box { display: inline-block; background: #ffe600; color: #111; padding: 0 22px 6px; border-radius: 10px; line-height: 1.0; transform: rotate(-1.2deg); box-shadow: 0 6px 0 rgba(0,0,0,.12); }
+  .light .box { box-shadow: 0 6px 0 rgba(0,0,0,.08); }
+  .circle { position: relative; display: inline-block; padding: 0 14px; }
+  .circle svg { position: absolute; left: -18px; top: -10px; width: calc(100% + 36px); height: calc(100% + 26px); overflow: visible; }
+  .under { position: relative; display: inline-block; }
+  .under svg { position: absolute; left: -4px; right: -4px; bottom: -14px; height: 22px; width: calc(100% + 8px); overflow: visible; }
+  .icon { z-index: 4; width: 170px; height: 170px; border-radius: 26%; background: linear-gradient(160deg, #ffffff 0%, #e9eaee 60%, #d2d4da 100%);
+          box-shadow: 0 24px 40px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.9), inset 0 -10px 18px rgba(0,0,0,.08); display: grid; place-items: center; }
+  .dark .icon { background: linear-gradient(160deg, #3a3d44 0%, #202228 60%, #121316 100%); box-shadow: 0 24px 40px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.18), inset 0 -10px 18px rgba(0,0,0,.35); }
+  .icon img { width: 58%; height: 58%; object-fit: contain; pointer-events: none; }
+  .icon.hero { z-index: 5; }
+  .icon.hero img { width: 62%; height: 62%; }
+  .strip { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 8px 20px 16px; }
+  .strip label { display: flex; align-items: center; gap: 6px; }
+  select, input[type=text] { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid #c8c8cc; background: #fff; }
+  .lines { display: grid; gap: 6px; padding: 0 20px 10px; max-width: 760px; }
+  .lines input { width: 100%; box-sizing: border-box; font-size: 16px; }
+  .lines small { color: #666; }
+  details { padding: 0 20px 20px; } textarea.settings { width: 100%; box-sizing: border-box; min-height: 90px; font: 12px/1.4 ui-monospace, Menlo, monospace; }
+  .insp { position: absolute; background: #fff; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.25); padding: 8px 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; z-index: 50; font-size: 14px; max-width: 520px; }
+  .insp .pm { padding: 2px 9px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Studio Thumbnail Editor <small>Boring Business</small></h1>
+  <div class="video" id="videoName">No video loaded.</div>
+</header>
+<div class="bar">
+  <button class="primary" id="saveBtn" type="button">Save</button>
+  <button id="downloadBtn" type="button">Download PNG</button>
+  <button id="copyBtn" type="button">Copy settings</button>
+  <button id="undoBtn" type="button" disabled>Undo</button>
+  <button id="resetBtn" type="button">Back to original</button>
+  <span class="sp"></span>
+  <span class="hint" id="hint">Click anything to select it. Drag to move, pull the blue dot to resize, arrow keys nudge. Press Save when done.</span>
+</div>
+<div class="wrap" id="wrap">
+  <div id="stage" class="light">
+    <div id="glow"></div>
+    <div class="obj" id="face" data-kind="face"><img id="faceImg" alt="Presenter"><span class="handle"></span></div>
+    <div class="obj" id="head" data-kind="head"><span class="handle"></span></div>
+  </div>
+  <div class="insp" id="insp" hidden></div>
+</div>
+<div class="strip">
+  <label>Background <select id="bg"><option value="light">light</option><option value="dark">dark</option></select></label>
+  <label>Glow <input type="color" id="glowPick" value="#3b82f6"><button id="glowClear" type="button" title="No glow">×</button></label>
+  <label>Pose <select id="pose"></select></label>
+  <label>Side <select id="faceside"><option value="right">right</option><option value="left">left</option></select></label>
+  <label>Add icon <select id="addIcon"><option value="">logo…</option></select></label>
+  <label>Hero icon <select id="hero"><option value="">none</option></select></label>
+  <button id="addLine" type="button">+ line</button>
+  <button id="delLine" type="button">− line</button>
+</div>
+<div class="lines" id="lines"></div>
+<details>
+  <summary>Settings (paste a row's "Thumbnail settings" here if the page opened without a video)</summary>
+  <textarea class="settings" id="settings" spellcheck="false" aria-label="Thumbnail settings JSON"></textarea>
+  <div class="bar" style="padding: 8px 0 0"><button id="loadBtn" type="button">Load from pasted settings</button></div>
+</details>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+<script>
+(function () {
+  const SAVE_URL = "https://bb-thumb-save.ljsuppliers.workers.dev/save";
+  const CLASSIC = "./?v=7";
+  const LOGOS = ["anthropic", "apple", "canva", "claude", "deepseek", "github", "gmail", "google", "googlegemini", "lovable", "meta", "microsoft", "notion", "openai", "perplexity", "php", "quickbooks", "shopify", "slack", "stripe", "whatsapp", "x", "youtube"];
+  const POSES = ["tablet", "two-cards", "cupped", "chin-fist", "framing", "pointing-left", "pointing-up", "laptop-chair", "keyboard", "thumbs-up", "phone", "arms-folded"];
+  const DEFAULTS = { layout: "studio", bg: "light", lines: ["Your headline", "for {serif:someone}", "{circle:2026} {box:Guide}"], pose: "cupped", faceside: "right", faceh: 740, facex: -150, facey: -10,
+                     headx: 52, heady: 40, headsize: 112, icons: [], hero: null, glow: "", manual: 1 };
+  const $ = (id) => document.getElementById(id);
+  let P = JSON.parse(JSON.stringify(DEFAULTS)), original = null, slug = "", title = "", history = [], scale = 1, sel = null, selIdx = 0;
+  const circleSvg = '<svg viewBox="0 0 100 60" preserveAspectRatio="none"><ellipse cx="50" cy="30" rx="47" ry="26" fill="none" stroke="#e5261f" stroke-width="6" stroke-linecap="round" stroke-dasharray="182 14" transform="rotate(-5 50 30)" vector-effect="non-scaling-stroke"/></svg>';
+  const underSvg = '<svg viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M2,6 C30,2 70,9 98,4" fill="none" stroke="#e5261f" stroke-width="6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>';
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const render = (line) => esc(line).replace(/\{(serif|box|circle|under):([^}]+)\}/g, (m, k, w) =>
+    k === "serif" ? `<span class="serif">${w}</span>` : k === "box" ? `<span class="box">${w}</span>` : k === "circle" ? `<span class="circle">${w}${circleSvg}</span>` : `<span class="under">${w}${underSvg}</span>`);
+
+  POSES.forEach((p) => $("pose").appendChild(new Option(p.replace(/-/g, " "), p)));
+  LOGOS.forEach((l) => { $("addIcon").appendChild(new Option(l, l)); $("hero").appendChild(new Option(l, l)); });
+
+  function draw() {
+    const stage = $("stage"); stage.className = P.bg === "dark" ? "dark" : "light";
+    const face = $("face");
+    if (!P.pose || P.pose === "none") face.style.display = "none"; else {
+      face.style.display = ""; $("faceImg").src = "poses/" + P.pose + ".png"; face.style.height = (P.faceh || 740) + "px";
+      face.style.left = ""; face.style.right = "";
+      face.style[P.faceside === "left" ? "left" : "right"] = (-(P.facex || 0)) + "px"; face.style.bottom = (-4 - (P.facey || 0)) + "px";
+    }
+    const head = $("head"); head.querySelectorAll(".line").forEach((l) => l.remove());
+    const handle = head.querySelector(".handle");
+    (P.lines || []).forEach((raw, i) => { const d = document.createElement("span"); d.className = "line"; d.dataset.idx = i; d.innerHTML = render(raw); d.style.fontSize = (P.headsize || 112) + "px"; head.insertBefore(d, handle); });
+    head.style.left = (P.headx == null ? 52 : P.headx) + "px"; head.style.top = (P.heady == null ? 40 : P.heady) + "px";
+    stage.querySelectorAll(".icon").forEach((e) => e.remove());
+    (P.icons || []).forEach((ic, i) => stage.appendChild(iconEl(ic, "icon", i)));
+    if (P.hero && P.hero.logo) stage.appendChild(iconEl(P.hero, "hero", 0));
+    const glow = $("glow");
+    if (P.hero && P.hero.logo && (P.glow || P.bg === "dark")) {
+      glow.style.display = ""; glow.style.background = P.glow || "#3b82f6";
+      glow.style.left = (P.hero.x + (P.hero.s || 250) / 2 - 260) + "px"; glow.style.top = (P.hero.y + (P.hero.s || 250) / 2 - 260) + "px";
+    } else glow.style.display = "none";
+    syncStrip();
+    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === sel && (sel === "icon" ? +o.dataset.i === selIdx : true)));
+    placeInspector();
+  }
+  function iconEl(ic, kind, i) {
+    const d = document.createElement("div"); d.className = "obj icon" + (kind === "hero" ? " hero" : ""); d.dataset.kind = kind; d.dataset.i = i;
+    d.style.left = ic.x + "px"; d.style.top = ic.y + "px"; d.style.width = d.style.height = (ic.s || (kind === "hero" ? 250 : 170)) + "px"; d.style.transform = `rotate(${ic.rot || 0}deg)`;
+    const img = document.createElement("img"); img.src = "logos/" + ic.logo + "-colour.svg"; img.alt = ""; img.onerror = () => { img.onerror = null; img.src = "logos/" + ic.logo + "-ink.svg"; };
+    d.appendChild(img); const h = document.createElement("span"); h.className = "handle"; d.appendChild(h); wireObj(d); return d;
+  }
+  function syncStrip() {
+    $("bg").value = P.bg === "dark" ? "dark" : "light"; $("pose").value = POSES.includes(P.pose) ? P.pose : "cupped"; $("faceside").value = P.faceside === "left" ? "left" : "right";
+    $("hero").value = P.hero && P.hero.logo ? P.hero.logo : ""; $("glowPick").value = P.glow || "#3b82f6";
+    const box = $("lines"); box.innerHTML = "";
+    (P.lines || []).forEach((l, i) => { const inp = document.createElement("input"); inp.type = "text"; inp.value = l; inp.setAttribute("aria-label", "Line " + (i + 1));
+      inp.addEventListener("change", () => { push(); P.lines[i] = inp.value; draw(); }); box.appendChild(inp); });
+    const s = document.createElement("small"); s.textContent = "Styles inside a line: {serif:word} italic serif, {box:word} yellow box, {circle:word} red circle, {under:word} red underline."; box.appendChild(s);
+    $("settings").value = JSON.stringify(Object.assign({ slug, title }, clean(P)));
+    $("undoBtn").disabled = history.length === 0;
+  }
+  function clean(p) {
+    const o = JSON.parse(JSON.stringify(p)); o.layout = "studio"; o.manual = 1;
+    ["faceh", "facex", "facey", "headx", "heady", "headsize"].forEach((k) => { o[k] = Math.round(o[k] || 0); });
+    if (!o.faceh) o.faceh = 740; if (!o.headsize) o.headsize = 112;
+    o.lines = (o.lines || []).filter((l) => l && l.trim());
+    o.icons = (o.icons || []).map((ic) => ({ logo: ic.logo, x: Math.round(ic.x), y: Math.round(ic.y), s: Math.round(ic.s || 170), rot: Math.round(ic.rot || 0) }));
+    o.hero = o.hero && o.hero.logo ? { logo: o.hero.logo, x: Math.round(o.hero.x), y: Math.round(o.hero.y), s: Math.round(o.hero.s || 250), rot: Math.round(o.hero.rot || 0) } : null;
+    return o;
+  }
+  function push() { history.push(JSON.stringify(P)); if (history.length > 80) history.shift(); $("undoBtn").disabled = false; }
+  function fit() { scale = $("wrap").clientWidth / 1280; $("stage").style.transform = "scale(" + scale + ")"; placeInspector(); }
+  window.addEventListener("resize", fit);
+
+  // ---------------------------------------------------------------- selection + inspector
+  function select(kind, idx) {
+    sel = kind; if (idx != null) selIdx = idx;
+    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === kind && (kind === "icon" ? +o.dataset.i === selIdx : true)));
+    buildInspector();
+  }
+  function buildInspector() {
+    const insp = $("insp"); insp.innerHTML = ""; if (!sel) { insp.hidden = true; return; } insp.hidden = false;
+    const add = (html) => { const d = document.createElement("div"); d.innerHTML = html; while (d.firstChild) insp.appendChild(d.firstChild); };
+    if (sel === "head") {
+      add(`<label>Size <button type="button" class="pm" data-k="headsize" data-d="-4">−</button> <span id="iSize">${Math.round(P.headsize || 112)}</span> <button type="button" class="pm" data-k="headsize" data-d="4">+</button></label><span class="hint">Edit the words in the boxes below the picture.</span>`);
+    } else if (sel === "face") {
+      add(`<label>Height <button type="button" class="pm" data-k="faceh" data-d="-20">−</button> <span>${Math.round(P.faceh || 740)}</span> <button type="button" class="pm" data-k="faceh" data-d="20">+</button></label>`);
+    } else if (sel === "icon" || sel === "hero") {
+      const ic = sel === "hero" ? P.hero : (P.icons || [])[selIdx]; if (!ic) { insp.hidden = true; return; }
+      const opts = LOGOS.map((l) => `<option value="${l}" ${l === ic.logo ? "selected" : ""}>${l}</option>`).join("");
+      add(`<label>Logo <select id="iLogo">${opts}</select></label>
+           <label>Tilt <button type="button" class="pm" data-k="rot" data-d="-3">↺</button> <span>${Math.round(ic.rot || 0)}°</span> <button type="button" class="pm" data-k="rot" data-d="3">↻</button></label>
+           <button id="iDel" type="button">Remove</button>`);
+      $("iLogo").addEventListener("change", () => { push(); ic.logo = $("iLogo").value; draw(); });
+      $("iDel").addEventListener("click", () => { push(); if (sel === "hero") P.hero = null; else P.icons.splice(selIdx, 1); select(null); draw(); });
+    }
+    insp.querySelectorAll(".pm").forEach((b) => b.addEventListener("click", () => {
+      push(); const k = b.dataset.k, d = parseFloat(b.dataset.d);
+      if (k === "headsize") P.headsize = Math.max(40, Math.min(220, Math.round((P.headsize || 112) + d)));
+      if (k === "faceh") P.faceh = Math.max(300, Math.min(1400, Math.round((P.faceh || 740) + d)));
+      if (k === "rot") { const ic = sel === "hero" ? P.hero : P.icons[selIdx]; if (ic) ic.rot = Math.round((ic.rot || 0) + d); }
+      draw(); buildInspector();
+    }));
+    placeInspector();
+  }
+  function selEl() { return sel === "icon" ? $("stage").querySelector('.icon[data-kind="icon"][data-i="' + selIdx + '"]') : sel === "hero" ? $("stage").querySelector('.icon.hero') : sel ? $(sel) : null; }
+  function placeInspector() {
+    const insp = $("insp"); if (insp.hidden || !sel) return; const el = selEl(); if (!el) { insp.hidden = true; return; }
+    const r = el.getBoundingClientRect(), w = $("wrap").getBoundingClientRect();
+    let top = r.top - w.top - insp.offsetHeight - 14; if (top < 6) top = r.bottom - w.top + 14; if (top + insp.offsetHeight > w.height - 6) top = 6;
+    let left = r.left - w.left; left = Math.max(6, Math.min(left, w.width - insp.offsetWidth - 6));
+    insp.style.top = top + "px"; insp.style.left = left + "px";
+  }
+
+  // ---------------------------------------------------------------- drag + resize
+  let drag = null;
+  const alphaCache = {};
+  function faceOpaqueAt(e) {
+    const img = $("faceImg"); if (!img.naturalWidth) return true;
+    let c = alphaCache[img.src];
+    if (!c) { c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight; try { c.getContext("2d").drawImage(img, 0, 0); } catch (err) { return true; } alphaCache[img.src] = c; }
+    const r = img.getBoundingClientRect(); const x = Math.floor((e.clientX - r.left) / r.width * c.width), y = Math.floor((e.clientY - r.top) / r.height * c.height);
+    if (x < 0 || y < 0 || x >= c.width || y >= c.height) return false;
+    try { return c.getContext("2d").getImageData(x, y, 1, 1).data[3] > 24; } catch (err) { return true; }
+  }
+  function target(kind, i) { return kind === "icon" ? (P.icons || [])[i] : kind === "hero" ? P.hero : null; }
+  function beginDrag(o, e) {
+    const kind = o.dataset.kind, i = +o.dataset.i;
+    const resize = e.target.classList.contains("handle");
+    if (kind === "face" && !resize && !faceOpaqueAt(e)) {
+      const under = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el.classList && el.classList.contains("obj") && el !== o);
+      if (under) { beginDrag(under, e); return; } select(null); return;
+    }
+    select(kind, kind === "icon" ? i : null); e.preventDefault();
+    const r = o.getBoundingClientRect(); const t = target(kind, i);
+    drag = { kind, i, resize, x0: e.clientX, y0: e.clientY, w: r.width / scale, start: { facex: P.facex || 0, facey: P.facey || 0, faceh: P.faceh || 740, headx: P.headx == null ? 52 : P.headx, heady: P.heady == null ? 40 : P.heady, headsize: P.headsize || 112, ix: t ? t.x : 0, iy: t ? t.y : 0, is: t ? (t.s || (kind === "hero" ? 250 : 170)) : 0 } };
+    try { o.setPointerCapture(e.pointerId); } catch (err) {}
+    o.classList.add("dragging"); push();
+  }
+  function wireObj(o) {
+    const kind = o.dataset.kind;
+    o.addEventListener("pointerdown", (e) => beginDrag(o, e));
+    o.addEventListener("pointermove", (e) => {
+      if (!drag || drag.kind !== kind || (kind === "icon" && drag.i !== +o.dataset.i)) return;
+      const dx = (e.clientX - drag.x0) / scale, dy = (e.clientY - drag.y0) / scale; const s = drag.start;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) drag.moved = true;
+      const t = target(kind, drag.i);
+      if (drag.resize) {
+        const k = Math.max(0.25, Math.min(3, (drag.w + dx) / drag.w));
+        if (kind === "face") { P.faceh = Math.round(s.faceh * k); o.style.height = P.faceh + "px"; }
+        if (kind === "head") { P.headsize = Math.max(40, Math.min(220, Math.round(s.headsize * k))); o.querySelectorAll(".line").forEach((l) => l.style.fontSize = P.headsize + "px"); }
+        if (t) { t.s = Math.max(60, Math.min(600, Math.round(s.is * k))); o.style.width = o.style.height = t.s + "px"; }
+      } else {
+        if (kind === "face") { const sign = P.faceside === "left" ? 1 : -1; P.facex = Math.round(s.facex + sign * dx); P.facey = Math.round(s.facey - dy); o.style[P.faceside === "left" ? "left" : "right"] = (-P.facex) + "px"; o.style.bottom = (-4 - P.facey) + "px"; }
+        if (kind === "head") { P.headx = Math.round(s.headx + dx); P.heady = Math.round(s.heady + dy); o.style.left = P.headx + "px"; o.style.top = P.heady + "px"; }
+        if (t) { t.x = Math.round(s.ix + dx); t.y = Math.round(s.iy + dy); o.style.left = t.x + "px"; o.style.top = t.y + "px"; }
+      }
+      placeInspector();
+    });
+    const end = () => { if (!drag) return; const moved = drag.moved; drag = null; o.classList.remove("dragging"); if (!moved) history.pop(); draw(); buildInspector(); };
+    o.addEventListener("pointerup", end); o.addEventListener("pointercancel", end);
+  }
+  document.querySelectorAll(".obj").forEach(wireObj);
+  $("stage").addEventListener("pointerdown", (e) => { if (e.target === $("stage") || e.target === $("glow")) select(null); });
+  document.addEventListener("keydown", (e) => {
+    if (!sel || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+    const step = e.shiftKey ? 20 : 4; let d = null;
+    if (e.key === "ArrowLeft") d = [-step, 0]; if (e.key === "ArrowRight") d = [step, 0]; if (e.key === "ArrowUp") d = [0, -step]; if (e.key === "ArrowDown") d = [0, step];
+    if (!d) return; e.preventDefault(); push();
+    if (sel === "face") { P.facex = (P.facex || 0) + (P.faceside === "left" ? d[0] : -d[0]); P.facey = (P.facey || 0) - d[1]; }
+    if (sel === "head") { P.headx = (P.headx == null ? 52 : P.headx) + d[0]; P.heady = (P.heady == null ? 40 : P.heady) + d[1]; }
+    const t = target(sel, selIdx); if (t) { t.x += d[0]; t.y += d[1]; }
+    draw();
+  });
+
+  // ---------------------------------------------------------------- strip
+  $("bg").addEventListener("change", () => { push(); P.bg = $("bg").value; draw(); });
+  $("glowPick").addEventListener("input", () => { P.glow = $("glowPick").value; draw(); }); $("glowPick").addEventListener("change", () => push());
+  $("glowClear").addEventListener("click", () => { push(); P.glow = ""; draw(); });
+  $("pose").addEventListener("change", () => { push(); P.pose = $("pose").value; draw(); });
+  $("faceside").addEventListener("change", () => { push(); P.faceside = $("faceside").value; draw(); });
+  $("addIcon").addEventListener("change", () => { const l = $("addIcon").value; if (!l) return; push(); P.icons = P.icons || []; const n = P.icons.length; P.icons.push({ logo: l, x: 56 + (n % 3) * 180, y: 500 + (n % 2) * 20, s: 170, rot: [-9, 7, -5][n % 3] }); $("addIcon").value = ""; draw(); select("icon", n); });
+  $("hero").addEventListener("change", () => { push(); const l = $("hero").value; P.hero = l ? Object.assign({ x: 700, y: 400, s: 250, rot: -8 }, P.hero || {}, { logo: l }) : null; draw(); });
+  $("addLine").addEventListener("click", () => { if ((P.lines || []).length >= 4) return; push(); P.lines = (P.lines || []).concat(["new line"]); draw(); });
+  $("delLine").addEventListener("click", () => { if ((P.lines || []).length <= 1) return; push(); P.lines = P.lines.slice(0, -1); draw(); });
+  $("undoBtn").addEventListener("click", () => { if (!history.length) return; P = JSON.parse(history.pop()); draw(); buildInspector(); });
+  $("resetBtn").addEventListener("click", () => { if (original) { push(); P = JSON.parse(JSON.stringify(original)); draw(); buildInspector(); } });
+
+  // ---------------------------------------------------------------- export + save (same contract as the classic editor)
+  function exportStage() {
+    const stage = $("stage"), prev = stage.style.transform, wasSel = sel;
+    select(null); stage.style.transform = "none";
+    const skip = (node) => !(node.classList && (node.classList.contains("handle") || node.id === "insp"));
+    return htmlToImage.toPng(stage, { width: 1280, height: 720, pixelRatio: 1, cacheBust: true, style: { transform: "none" }, filter: skip })
+      .finally(() => { stage.style.transform = prev; if (wasSel) select(wasSel); });
+  }
+  $("saveBtn").addEventListener("click", () => {
+    if (!slug) { $("hint").textContent = "No video loaded: open the editor from the row's edit link, or paste its settings and press Load."; return; }
+    $("saveBtn").disabled = true; $("hint").textContent = "Saving…";
+    let pngOut = "";
+    exportStage().catch(() => exportStage()).catch(() => "")
+      .then((png) => { pngOut = png || ""; return JSON.stringify({ slug, settings: $("settings").value, png: pngOut }); })
+      .then((payload) => fetch(SAVE_URL, { method: "POST", body: payload, headers: { "Content-Type": "text/plain;charset=utf-8" }, redirect: "follow" }))
+      .then((r) => r.json().catch(() => ({ ok: r.ok })))
+      .then((j) => { $("saveBtn").disabled = false; if (j && j.ok) { $("hint").innerHTML = '<span class="ok">Saved.</span> ' + (pngOut ? "" : "(picture rendered on the mini within a minute) ") + 'Tick Thumb OK on the row when you are happy with it.'; } else { $("hint").textContent = "The sheet did not accept it: " + JSON.stringify(j).slice(0, 120); } })
+      .catch(() => { $("saveBtn").disabled = false; $("hint").textContent = "Could not reach the sheet. Use Copy settings and paste into the row."; });
+  });
+  $("downloadBtn").addEventListener("click", () => {
+    $("hint").textContent = "Rendering the PNG…";
+    exportStage().then((url) => { const a = document.createElement("a"); a.href = url; a.download = (slug || "thumbnail") + ".png"; document.body.appendChild(a); a.click(); a.remove(); $("hint").innerHTML = '<span class="ok">Downloaded.</span>'; })
+      .catch((e) => { $("hint").textContent = "Could not render the PNG: " + e; });
+  });
+  $("copyBtn").addEventListener("click", () => {
+    const text = $("settings").value; const done = () => { $("hint").innerHTML = '<span class="ok">Copied.</span> Paste into the row\'s Thumbnail settings cell.'; };
+    const manual = () => { $("settings").focus(); $("settings").select(); $("hint").textContent = "Press Cmd+C to copy the settings."; };
+    try { navigator.clipboard.writeText(text).then(done).catch(manual); } catch (e) { manual(); }
+  });
+  $("loadBtn").addEventListener("click", () => { try { load(JSON.parse($("settings").value), "pasted settings"); } catch (e) { $("hint").textContent = "Those settings are not valid JSON."; } });
+
+  // ---------------------------------------------------------------- load
+  function load(p, how) {
+    if (p.layout && p.layout !== "studio") { location.replace(CLASSIC + location.search.replace(/^\?/, "&") + location.hash); return; }   // a classic design opens the classic editor
+    slug = p.slug || slug; title = p.title || title;
+    P = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), p); delete P.slug; delete P.title;
+    original = JSON.parse(JSON.stringify(P)); history = [];
+    $("videoName").textContent = (title || slug || "untitled") + (how ? "  (" + how + ")" : "");
+    draw(); fit();
+  }
+  function fromHash() {
+    try { const h = (location.hash || "").replace(/^#/, ""); if (!h) return false; const b = h.replace(/-/g, "+").replace(/_/g, "/"); const p = JSON.parse(decodeURIComponent(escape(atob(b + "===".slice((b.length + 3) % 4))))); load(p, "from the sheet"); return true; } catch (e) { return false; }
+  }
+  function fromLatest() {
+    const slugQ = new URLSearchParams(location.search).get("slug"); if (!slugQ) return Promise.resolve(false);
+    const hashP = (() => { try { const h = (location.hash || "").replace(/^#/, ""); const b = h.replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(decodeURIComponent(escape(atob(b + "===".slice((b.length + 3) % 4))))); } catch (e) { return {}; } })();
+    return fetch(SAVE_URL.replace(/\/save$/, "") + "/latest/" + encodeURIComponent(slugQ), { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!j || !j.settings) return false; let p = {}; try { p = typeof j.settings === "string" ? JSON.parse(j.settings) : j.settings; } catch (e) { return false; }
+                     p.slug = slugQ; p.title = p.title || hashP.title || ""; load(p, "latest save"); $("hint").textContent = "Showing your latest save."; return true; })
+      .catch(() => false);
+  }
+  window.addEventListener("hashchange", fromHash);
+  document.fonts.ready.then(() => fromLatest().then((ok) => { if (ok) return; if (!fromHash()) load({}, ""); }));
+})();
+</script>
+</body>
+</html>

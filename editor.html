@@ -456,8 +456,19 @@
     const h = (location.hash || "").replace(/^#/, ""); if (!h) return false;
     try { const b = h.replace(/-/g, "+").replace(/_/g, "/"); const pad = b + "===".slice((b.length + 3) % 4); const p = JSON.parse(decodeURIComponent(escape(atob(pad)))); load(p, "from link"); return true; } catch (e) { return false; }
   }
+  // 28 Oct 2026 (Liam: "shouldn't the link be a live link so it just shows whatever we have edited straight away?"): with ?slug= in
+  // the link, the latest save for that video is fetched on open and wins over the settings baked into the link
+  function fromLatest() {
+    const slugQ = new URLSearchParams(location.search).get("slug"); if (!slugQ) return Promise.resolve(false);
+    const hashP = (() => { try { const h = (location.hash || "").replace(/^#/, ""); const b = h.replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(decodeURIComponent(escape(atob(b + "===".slice((b.length + 3) % 4))))); } catch (e) { return {}; } })();
+    return fetch(SAVE_URL.replace(/\/save$/, "") + "/latest/" + encodeURIComponent(slugQ), { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!j || !j.settings) return false; let p = {}; try { p = typeof j.settings === "string" ? JSON.parse(j.settings) : j.settings; } catch (e) { return false; }
+                     p.slug = slugQ; p.title = p.title || hashP.title || ""; load(p, "latest save"); $("hint").textContent = "Showing your latest save."; return true; })
+      .catch(() => false);
+  }
   window.addEventListener("hashchange", fromHash);
-  document.fonts.ready.then(() => { if (!fromHash()) load({ layout: "classic", topic: "claude", lines: ["[w]Claude", "[t]Dashboards", "[p]explained"], logo: LOGOS.includes("claude") ? "claude" : "", name: "Claude" }, "Example (no video loaded)"); });
+  document.fonts.ready.then(() => fromLatest().then((ok) => { if (ok) return; if (!fromHash()) load({ layout: "classic", topic: "claude", lines: ["[w]Claude", "[t]Dashboards", "[p]explained"], logo: LOGOS.includes("claude") ? "claude" : "", name: "Claude" }, "Example (no video loaded)"); }));
 })();
 </script>
 </body>

@@ -45,6 +45,10 @@
   .dark .icon { background: linear-gradient(160deg, #3a3d44 0%, #202228 60%, #121316 100%); box-shadow: 0 24px 40px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.18), inset 0 -10px 18px rgba(0,0,0,.35); }
   .icon img { width: 58%; height: 58%; object-fit: contain; pointer-events: none; }
   .icon.hero { z-index: 5; }
+  .free { font-weight: 900; line-height: 1.02; letter-spacing: -0.035em; white-space: nowrap; z-index: 6; }
+  .free .serif { font-size: 1.1em; }
+  .free[contenteditable="true"] { outline: 2px solid #2563eb; }
+  .sticker { z-index: 6; overflow: visible; }
   .icon.hero img { width: 62%; height: 62%; }
   .strip { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 8px 20px 16px; }
   .strip label { display: flex; align-items: center; gap: 6px; }
@@ -88,6 +92,8 @@
   <label>Hero icon <select id="hero"><option value="">none</option></select></label>
   <button id="addLine" type="button">+ line</button>
   <button id="delLine" type="button">− line</button>
+  <button id="addText" type="button">+ text</button>
+  <button id="addArrow" type="button">+ arrow</button>
 </div>
 <div class="lines" id="lines"></div>
 <details>
@@ -104,7 +110,7 @@
   const LOGOS = ["anthropic", "apple", "canva", "claude", "deepseek", "github", "gmail", "google", "googlegemini", "lovable", "meta", "microsoft", "notion", "openai", "perplexity", "php", "quickbooks", "shopify", "slack", "stripe", "whatsapp", "x", "youtube"];
   const POSES = ["tablet", "two-cards", "cupped", "chin-fist", "framing", "pointing-left", "pointing-up", "laptop-chair", "keyboard", "thumbs-up", "phone", "arms-folded"];
   const DEFAULTS = { layout: "studio", bg: "light", lines: ["AI Marketing", "for {serif:Beginners}", "{circle:2026} {box:Guide}"], pose: "cupped", faceside: "right", faceh: 740, facex: 0, facey: -10,
-                     headx: 52, heady: 40, headsize: 112, icons: [{ logo: "claude", x: 56, y: 500, s: 170, rot: -9 }, { logo: "canva", x: 236, y: 520, s: 170, rot: 7 }], hero: { logo: "openai", x: 760, y: 400, s: 250, rot: -8 }, glow: "", manual: 1 };
+                     headx: 52, heady: 40, headsize: 112, icons: [{ logo: "claude", x: 56, y: 500, s: 170, rot: -9 }, { logo: "canva", x: 236, y: 520, s: 170, rot: 7 }], hero: { logo: "openai", x: 760, y: 400, s: 250, rot: -8 }, glow: "", texts: [], arrows: [], manual: 1 };
   const $ = (id) => document.getElementById(id);
   let P = JSON.parse(JSON.stringify(DEFAULTS)), original = null, slug = "", title = "", history = [], scale = 1, sel = null, selIdx = 0;
   const circleSvg = '<svg viewBox="0 0 100 60" preserveAspectRatio="none"><ellipse cx="50" cy="30" rx="47" ry="26" fill="none" stroke="#e5261f" stroke-width="6" stroke-linecap="round" stroke-dasharray="182 14" transform="rotate(-5 50 30)" vector-effect="non-scaling-stroke"/></svg>';
@@ -131,13 +137,29 @@
     stage.querySelectorAll(".icon").forEach((e) => e.remove());
     (P.icons || []).forEach((ic, i) => stage.appendChild(iconEl(ic, "icon", i)));
     if (P.hero && P.hero.logo) stage.appendChild(iconEl(P.hero, "hero", 0));
+    stage.querySelectorAll(".free, .sticker").forEach((e) => e.remove());
+    (P.texts || []).forEach((t, i) => {
+      const d = document.createElement("div"); d.className = "obj free"; d.dataset.kind = "text"; d.dataset.i = i;
+      d.style.left = t.x + "px"; d.style.top = t.y + "px"; d.style.fontSize = (t.s || 90) + "px";
+      d.innerHTML = (t.style && t.style !== "plain" ? render("{" + t.style + ":" + (t.text || "") + "}") : render(t.text || "")) + '<span class="handle"></span>';
+      stage.appendChild(d); wireObj(d);
+    });
+    (P.arrows || []).forEach((a, i) => {
+      const w = a.w || 260, h = Math.round(w * 0.66);
+      const d = document.createElement("div"); d.className = "obj sticker"; d.dataset.kind = "arrow"; d.dataset.i = i;
+      d.style.left = a.x + "px"; d.style.top = a.y + "px"; d.style.width = w + "px"; d.style.height = h + "px";
+      d.style.transform = `rotate(${a.rot || 0}deg)` + (a.flip ? " scaleX(-1)" : "");
+      const col = a.red ? "#e5261f" : (P.bg === "dark" ? "#fff" : "#111");
+      d.innerHTML = `<svg viewBox="0 0 300 200" style="width:100%;height:100%;overflow:visible"><path d="M10,20 C80,10 150,60 230,150" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round"/><path d="M186,136 L232,152 L226,106" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="handle"></span>`;
+      stage.appendChild(d); wireObj(d);
+    });
     const glow = $("glow");
     if (P.hero && P.hero.logo && (P.glow || P.bg === "dark")) {
       glow.style.display = ""; glow.style.background = P.glow || "#3b82f6";
       glow.style.left = (P.hero.x + (P.hero.s || 250) / 2 - 260) + "px"; glow.style.top = (P.hero.y + (P.hero.s || 250) / 2 - 260) + "px";
     } else glow.style.display = "none";
     syncStrip();
-    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === sel && (sel === "icon" ? +o.dataset.i === selIdx : true)));
+    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === sel && (["icon", "text", "arrow"].includes(sel) ? +o.dataset.i === selIdx : true)));
     placeInspector();
   }
   function iconEl(ic, kind, i) {
@@ -163,6 +185,8 @@
     o.lines = (o.lines || []).filter((l) => l && l.trim());
     o.icons = (o.icons || []).map((ic) => ({ logo: ic.logo, x: Math.round(ic.x), y: Math.round(ic.y), s: Math.round(ic.s || 170), rot: Math.round(ic.rot || 0) }));
     o.hero = o.hero && o.hero.logo ? { logo: o.hero.logo, x: Math.round(o.hero.x), y: Math.round(o.hero.y), s: Math.round(o.hero.s || 250), rot: Math.round(o.hero.rot || 0) } : null;
+    o.texts = (o.texts || []).filter((t) => (t.text || "").trim()).map((t) => ({ text: t.text, x: Math.round(t.x), y: Math.round(t.y), s: Math.round(t.s || 90), style: t.style || "plain" }));
+    o.arrows = (o.arrows || []).map((a) => ({ x: Math.round(a.x), y: Math.round(a.y), w: Math.round(a.w || 260), rot: Math.round(a.rot || 0), flip: a.flip ? 1 : 0, red: a.red ? 1 : 0 }));
     return o;
   }
   function push() { history.push(JSON.stringify(P)); if (history.length > 80) history.shift(); $("undoBtn").disabled = false; }
@@ -172,7 +196,7 @@
   // ---------------------------------------------------------------- selection + inspector
   function select(kind, idx) {
     sel = kind; if (idx != null) selIdx = idx;
-    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === kind && (kind === "icon" ? +o.dataset.i === selIdx : true)));
+    document.querySelectorAll(".obj").forEach((o) => o.classList.toggle("sel", o.dataset.kind === kind && (["icon", "text", "arrow"].includes(kind) ? +o.dataset.i === selIdx : true)));
     buildInspector();
   }
   function buildInspector() {
@@ -182,6 +206,22 @@
       add(`<label>Size <button type="button" class="pm" data-k="headsize" data-d="-4">−</button> <span id="iSize">${Math.round(P.headsize || 112)}</span> <button type="button" class="pm" data-k="headsize" data-d="4">+</button></label><span class="hint">Edit the words in the boxes below the picture.</span>`);
     } else if (sel === "face") {
       add(`<label>Height <button type="button" class="pm" data-k="faceh" data-d="-20">−</button> <span>${Math.round(P.faceh || 740)}</span> <button type="button" class="pm" data-k="faceh" data-d="20">+</button></label>`);
+    } else if (sel === "text") {
+      const t = (P.texts || [])[selIdx]; if (!t) { insp.hidden = true; return; }
+      const styles = ["plain", "serif", "box", "circle", "under"].map((x) => `<option value="${x}" ${x === (t.style || "plain") ? "selected" : ""}>${x}</option>`).join("");
+      add(`<label>Style <select id="iStyle">${styles}</select></label>
+           <label>Size <button type="button" class="pm" data-k="ts" data-d="-6">−</button> <span>${Math.round(t.s || 90)}</span> <button type="button" class="pm" data-k="ts" data-d="6">+</button></label>
+           <button id="iWords" type="button">Edit words</button> <button id="iDel" type="button">Remove</button>`);
+      $("iStyle").addEventListener("change", () => { push(); t.style = $("iStyle").value; draw(); });
+      $("iWords").addEventListener("click", () => editText(selIdx));
+      $("iDel").addEventListener("click", () => { push(); P.texts.splice(selIdx, 1); select(null); draw(); });
+    } else if (sel === "arrow") {
+      const a = (P.arrows || [])[selIdx]; if (!a) { insp.hidden = true; return; }
+      add(`<label>Turn <button type="button" class="pm" data-k="arot" data-d="-10">↺</button> <span>${Math.round(a.rot || 0)}°</span> <button type="button" class="pm" data-k="arot" data-d="10">↻</button></label>
+           <button id="iFlip" type="button">Flip</button> <button id="iRed" type="button">${a.red ? "Black/white" : "Red"}</button> <button id="iDel" type="button">Remove</button>`);
+      $("iFlip").addEventListener("click", () => { push(); a.flip = !a.flip; draw(); buildInspector(); });
+      $("iRed").addEventListener("click", () => { push(); a.red = !a.red; draw(); buildInspector(); });
+      $("iDel").addEventListener("click", () => { push(); P.arrows.splice(selIdx, 1); select(null); draw(); });
     } else if (sel === "icon" || sel === "hero") {
       const ic = sel === "hero" ? P.hero : (P.icons || [])[selIdx]; if (!ic) { insp.hidden = true; return; }
       const opts = LOGOS.map((l) => `<option value="${l}" ${l === ic.logo ? "selected" : ""}>${l}</option>`).join("");
@@ -196,11 +236,13 @@
       if (k === "headsize") P.headsize = Math.max(40, Math.min(220, Math.round((P.headsize || 112) + d)));
       if (k === "faceh") P.faceh = Math.max(300, Math.min(1400, Math.round((P.faceh || 740) + d)));
       if (k === "rot") { const ic = sel === "hero" ? P.hero : P.icons[selIdx]; if (ic) ic.rot = Math.round((ic.rot || 0) + d); }
+      if (k === "ts" && P.texts[selIdx]) P.texts[selIdx].s = Math.max(30, Math.min(260, Math.round((P.texts[selIdx].s || 90) + d)));
+      if (k === "arot" && P.arrows[selIdx]) P.arrows[selIdx].rot = Math.round((P.arrows[selIdx].rot || 0) + d);
       draw(); buildInspector();
     }));
     placeInspector();
   }
-  function selEl() { return sel === "icon" ? $("stage").querySelector('.icon[data-kind="icon"][data-i="' + selIdx + '"]') : sel === "hero" ? $("stage").querySelector('.icon.hero') : sel ? $(sel) : null; }
+  function selEl() { return ["icon", "text", "arrow"].includes(sel) ? $("stage").querySelector('.obj[data-kind="' + sel + '"][data-i="' + selIdx + '"]') : sel === "hero" ? $("stage").querySelector('.icon.hero') : sel ? $(sel) : null; }
   function placeInspector() {
     const insp = $("insp"); if (insp.hidden || !sel) return; const el = selEl(); if (!el) { insp.hidden = true; return; }
     const r = el.getBoundingClientRect(), w = $("wrap").getBoundingClientRect();
@@ -220,7 +262,7 @@
     if (x < 0 || y < 0 || x >= c.width || y >= c.height) return false;
     try { return c.getContext("2d").getImageData(x, y, 1, 1).data[3] > 24; } catch (err) { return true; }
   }
-  function target(kind, i) { return kind === "icon" ? (P.icons || [])[i] : kind === "hero" ? P.hero : null; }
+  function target(kind, i) { return kind === "icon" ? (P.icons || [])[i] : kind === "hero" ? P.hero : kind === "text" ? (P.texts || [])[i] : kind === "arrow" ? (P.arrows || [])[i] : null; }
   function beginDrag(o, e) {
     const kind = o.dataset.kind, i = +o.dataset.i;
     const resize = e.target.classList.contains("handle");
@@ -228,9 +270,10 @@
       const under = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el.classList && el.classList.contains("obj") && el !== o);
       if (under) { beginDrag(under, e); return; } select(null); return;
     }
-    select(kind, kind === "icon" ? i : null); e.preventDefault();
+    if (e.target.isContentEditable) return;
+    select(kind, ["icon", "text", "arrow"].includes(kind) ? i : null); e.preventDefault();
     const r = o.getBoundingClientRect(); const t = target(kind, i);
-    drag = { kind, i, resize, x0: e.clientX, y0: e.clientY, w: r.width / scale, start: { facex: P.facex || 0, facey: P.facey || 0, faceh: P.faceh || 740, headx: P.headx == null ? 52 : P.headx, heady: P.heady == null ? 40 : P.heady, headsize: P.headsize || 112, ix: t ? t.x : 0, iy: t ? t.y : 0, is: t ? (t.s || (kind === "hero" ? 250 : 170)) : 0 } };
+    drag = { kind, i, resize, x0: e.clientX, y0: e.clientY, w: r.width / scale, start: { facex: P.facex || 0, facey: P.facey || 0, faceh: P.faceh || 740, headx: P.headx == null ? 52 : P.headx, heady: P.heady == null ? 40 : P.heady, headsize: P.headsize || 112, ix: t ? t.x : 0, iy: t ? t.y : 0, is: t ? (t.s || (kind === "hero" ? 250 : 170)) : 0, ts: t ? (t.s || 90) : 0, aw: t ? (t.w || 260) : 0 } };
     try { o.setPointerCapture(e.pointerId); } catch (err) {}
     o.classList.add("dragging"); push();
   }
@@ -238,7 +281,7 @@
     const kind = o.dataset.kind;
     o.addEventListener("pointerdown", (e) => beginDrag(o, e));
     o.addEventListener("pointermove", (e) => {
-      if (!drag || drag.kind !== kind || (kind === "icon" && drag.i !== +o.dataset.i)) return;
+      if (!drag || drag.kind !== kind || (["icon", "text", "arrow"].includes(kind) && drag.i !== +o.dataset.i)) return;
       const dx = (e.clientX - drag.x0) / scale, dy = (e.clientY - drag.y0) / scale; const s = drag.start;
       if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) drag.moved = true;
       const t = target(kind, drag.i);
@@ -246,7 +289,9 @@
         const k = Math.max(0.25, Math.min(3, (drag.w + dx) / drag.w));
         if (kind === "face") { P.faceh = Math.round(s.faceh * k); o.style.height = P.faceh + "px"; }
         if (kind === "head") { P.headsize = Math.max(40, Math.min(220, Math.round(s.headsize * k))); o.querySelectorAll(".line").forEach((l) => l.style.fontSize = P.headsize + "px"); }
-        if (t) { t.s = Math.max(60, Math.min(600, Math.round(s.is * k))); o.style.width = o.style.height = t.s + "px"; }
+        if (kind === "text" && t) { t.s = Math.max(30, Math.min(260, Math.round((s.ts || 90) * k))); o.style.fontSize = t.s + "px"; }
+        else if (kind === "arrow" && t) { t.w = Math.max(80, Math.min(900, Math.round((s.aw || 260) * k))); o.style.width = t.w + "px"; o.style.height = Math.round(t.w * 0.66) + "px"; }
+        else if (t) { t.s = Math.max(60, Math.min(600, Math.round(s.is * k))); o.style.width = o.style.height = t.s + "px"; }
       } else {
         if (kind === "face") { P.facex = Math.round(s.facex + (P.faceside === "left" ? -dx : dx)); P.facey = Math.round(s.facey + dy); o.style[P.faceside === "left" ? "left" : "right"] = (-P.facex) + "px"; o.style.bottom = (-4 - P.facey) + "px"; }
         if (kind === "head") { P.headx = Math.round(s.headx + dx); P.heady = Math.round(s.heady + dy); o.style.left = P.headx + "px"; o.style.top = P.heady + "px"; }
@@ -257,6 +302,17 @@
     const end = () => { if (!drag) return; const moved = drag.moved; drag = null; o.classList.remove("dragging"); if (!moved) history.pop(); draw(); buildInspector(); };
     o.addEventListener("pointerup", end); o.addEventListener("pointercancel", end);
   }
+  function editText(i) {
+    const el = $("stage").querySelector('.free[data-i="' + i + '"]'); const t = (P.texts || [])[i]; if (!el || !t) return;
+    push(); el.textContent = t.text || ""; el.contentEditable = "true"; el.focus();
+    const range = document.createRange(); range.selectNodeContents(el); const s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(range);
+    const finish = () => { el.contentEditable = "false"; t.text = el.textContent.replace(/\n/g, " ").trim() || t.text; draw(); };
+    el.addEventListener("blur", finish, { once: true });
+    el.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === "Escape") { ev.preventDefault(); el.blur(); } });
+  }
+  $("stage").addEventListener("dblclick", (e) => { const o = e.target.closest(".free"); if (o) editText(+o.dataset.i); });
+  $("addText").addEventListener("click", () => { push(); P.texts = P.texts || []; const n = P.texts.length; P.texts.push({ text: "New text", x: 420 + n * 30, y: 420 + n * 30, s: 90, style: "plain" }); draw(); select("text", n); editText(n); });
+  $("addArrow").addEventListener("click", () => { push(); P.arrows = P.arrows || []; const n = P.arrows.length; P.arrows.push({ x: 480 + n * 30, y: 160 + n * 30, w: 260, rot: 0, flip: 0, red: 0 }); draw(); select("arrow", n); });
   document.querySelectorAll(".obj").forEach(wireObj);
   $("stage").addEventListener("pointerdown", (e) => { if (e.target === $("stage") || e.target === $("glow")) select(null); });
   document.addEventListener("keydown", (e) => {
